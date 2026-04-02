@@ -45,22 +45,22 @@
 
 *Depends on: 0.1*
 
-- [ ] Define `ProlFile` struct matching Prolfile.toml schema (CLAUDE.md section 6):
+- [x] Define `ProlFile` struct matching Prolfile.toml schema (CLAUDE.md section 6):
   - `Meta` — `ProlfileVersion int`, `MinProlmVersion string`
   - `Package` — `Name`, `Version`, `Description`, `Authors []string`, `License`, `Homepage`, `Entry`, `Runtime`
   - `Dependencies map[string]string`
   - `DevDependencies map[string]string`
   - `RuntimeConfig` map for `[runtime.swi]` etc. (`Flags []string`, `MinVersion string`)
   - `Scripts map[string]string`
-- [ ] Define `LockFile` struct:
+- [x] Define `LockFile` struct:
   - `Meta` — `LockVersion int`, `ProlfileHash string`
   - `Packages []LockEntry` (sorted by name)
-- [ ] Define `LockEntry` struct:
+- [x] Define `LockEntry` struct:
   - `Name`, `Version`, `Source`, `URL`, `Checksum string`
   - `Dependencies []string`
   - `Signature string` (empty for now — future-proofing per 8.11)
-- [ ] Define `Dependency` struct for richer deps (Phase 2 path deps, source override)
-- [ ] Support namespaced identifiers (`owner/name`) from day one (per 8.12)
+- [x] Define `Dependency` struct for richer deps (Phase 2 path deps, source override)
+- [x] Support namespaced identifiers (`owner/name`) from day one (per 8.12)
 
 **Testing:** Unit tests — struct construction, zero values, basic serialization round-trip.
 **Security:** `Signature` field placeholder addresses future signing (8.11).
