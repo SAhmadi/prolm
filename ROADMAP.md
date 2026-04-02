@@ -103,14 +103,14 @@
 
 *Depends on: 1.1*
 
-- [ ] `lockfile.go` — `Load(path) (*LockFile, error)`:
+- [x] `lockfile.go` — `Load(path) (*LockFile, error)`:
   - Missing file returns `nil` (not an error — means first install)
   - Validate `lock_version` field
-- [ ] `lockfile.go` — `Save(path, lf) error`:
+- [x] `lockfile.go` — `Save(path, lf) error`:
   - **Atomic writes** (SEC-8): write to `Prolfile.lock.tmp`, then `os.Rename()`
   - `[[package]]` entries sorted by name
   - Keys in fixed order: `name`, `version`, `source`, `url`, `checksum`, `dependencies`
-- [ ] `IsEmpty(lf) bool`
+- [x] `IsEmpty(lf) bool`
 
 **Testing:** Round-trip identity, temp file cleanup, missing file returns nil, corrupted TOML errors, Git conflict markers produce clear error.
 **Security:** SEC-8 (atomic writes).
