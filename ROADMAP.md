@@ -69,10 +69,10 @@
 
 *Depends on: 0.2 (needs global flags)*
 
-- [ ] `printer.go` — `Info()`, `Success()`, `Warn()`, `Error()`, `Fatal()`, `Hint()`
+- [x] `printer.go` — `Info()`, `Success()`, `Warn()`, `Error()`, `Fatal()`, `Hint()`
   - Respect `--no-color` / `NO_COLOR` via `fatih/color`
   - Respect `--json` flag for structured output
-- [ ] `spinner.go` — wrap `schollz/progressbar` for download progress
+- [x] `spinner.go` — wrap `schollz/progressbar` for download progress
   - `StartSpinner(msg)` / `StopSpinner()`
 
 **Testing:** `Info` writes to buffer. `NO_COLOR` suppresses ANSI codes.
