@@ -10,30 +10,30 @@
 
 ### 0.1 — Go module and directory skeleton
 
-- [ ] Run `go mod init` with chosen module path
-- [ ] Create directory tree per CLAUDE.md section 5:
+- [x] Run `go mod init` with chosen module path
+- [x] Create directory tree per CLAUDE.md section 5:
   - `cmd/`
   - `internal/manifest/`, `internal/lockfile/`, `internal/resolver/`, `internal/registry/`, `internal/installer/`, `internal/runtime/`, `internal/scaffold/`, `internal/testrunner/`, `internal/checker/`, `internal/auth/`, `internal/ui/`
   - `pkg/prolfile/`
   - `testdata/valid-project/`, `testdata/no-lockfile/`, `testdata/circular-deps/`, `testdata/yanked-version/`, `testdata/bad-checksum/`
-- [ ] Create `main.go` entry point (calls `cmd.Execute()`)
-- [ ] Add placeholder `doc.go` in each internal package so `go build ./...` works
-- [ ] Install dependencies: `cobra`, `viper`, `BurntSushi/toml`, `Masterminds/semver/v3`, `charmbracelet/log`, `schollz/progressbar/v3`, `fatih/color`, `stretchr/testify`
-- [ ] Create `Makefile` with targets: `build`, `test`, `vet`, `lint`, `run`
-- [ ] Verify `go build ./...` and `go test ./...` pass
+- [x] Create `main.go` entry point (calls `cmd.Execute()`)
+- [x] Add placeholder `doc.go` in each internal package so `go build ./...` works
+- [x] Install dependencies: `cobra`, `viper`, `BurntSushi/toml`, `Masterminds/semver/v3`, `charmbracelet/log`, `schollz/progressbar/v3`, `fatih/color`, `stretchr/testify`
+- [x] Create `Makefile` with targets: `build`, `test`, `vet`, `lint`, `run`
+- [x] Verify `go build ./...` and `go test ./...` pass
 
 **Testing:** Compilation succeeds. `go vet ./...` clean.
 
 ### 0.2 — Root Cobra command and global flags
 
-- [ ] Implement `cmd/root.go`:
+- [x] Implement `cmd/root.go`:
   - `PersistentPreRunE` binding Viper flags, `viper.AutomaticEnv()`, env prefix `PROLM`
   - Global persistent flags: `--config`, `--runtime`, `--verbose`, `--no-color`, `--json`
   - Respect `NO_COLOR` env var
-- [ ] Implement `cmd/version.go` — prints hardcoded version (e.g. `0.1.0-dev`)
-- [ ] Verify `go run . version` and `go run . --help` work
+- [x] Implement `cmd/version.go` — prints hardcoded version (e.g. `0.1.0-dev`)
+- [x] Verify `go run . version` and `go run . --help` work
 
-**Testing:** Smoke test. Unit test for `Execute()` returning nil on `version`.
+**Testing:** Smoke test. Unit test for `Execute()` returning nil on `version`. ✓
 
 ---
 

@@ -64,7 +64,7 @@ It is the missing `cargo`/`poetry` of the Prolog world.
 | Progress bars      | `github.com/schollz/progressbar/v3` | Download progress                      |
 | Colour output      | `github.com/fatih/color` | Terminal colour, respects NO_COLOR env var        |
 
-**Go version:** 1.26+ (use `go.work` for workspace support from day one)
+**Go version:** 1.22+ (use `go.work` for workspace support from day one)
 
 **Important Cobra + Viper wiring note:**
 Bind Viper to Cobra flags in `PersistentPreRunE`, not `init()`, to avoid
