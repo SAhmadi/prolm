@@ -7,21 +7,23 @@ const (
 )
 
 // Meta holds format versioning metadata from the [meta] section of Prolfile.toml.
+// Fields are ordered alphabetically by TOML key for deterministic serialization.
 type Meta struct {
-	ProlfileVersion int    `toml:"prolfile_version"`
 	MinProlmVersion string `toml:"min_prolm_version"`
+	ProlfileVersion int    `toml:"prolfile_version"`
 }
 
 // Package holds project identity and configuration from the [package] section.
+// Fields are ordered alphabetically by TOML key for deterministic serialization.
 type Package struct {
-	Name        string   `toml:"name"`
-	Version     string   `toml:"version"`
-	Description string   `toml:"description"`
 	Authors     []string `toml:"authors"`
-	License     string   `toml:"license"`
-	Homepage    string   `toml:"homepage"`
+	Description string   `toml:"description"`
 	Entry       string   `toml:"entry"`
+	Homepage    string   `toml:"homepage"`
+	License     string   `toml:"license"`
+	Name        string   `toml:"name"`
 	Runtime     string   `toml:"runtime"`
+	Version     string   `toml:"version"`
 }
 
 // RuntimeConfig holds per-runtime settings (e.g. [runtime.swi]).

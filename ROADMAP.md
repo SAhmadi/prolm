@@ -81,15 +81,15 @@
 
 *Depends on: 1.1*
 
-- [ ] `manifest.go` — `Load(path) (*ProlFile, error)`:
+- [x] `manifest.go` — `Load(path) (*ProlFile, error)`:
   - Auto-discover `Prolfile.toml` by walking upward from cwd if path is empty
   - Check `prolfile_version` — hard error if higher than supported (per 8.17)
   - Check `min_prolm_version` — hard error if current version is lower (per 8.25)
-- [ ] `manifest.go` — `Save(path, pf) error`:
+- [x] `manifest.go` — `Save(path, pf) error`:
   - Deterministic key ordering (per 8.28)
   - Section order: `[meta]`, `[package]`, `[dependencies]`, `[dev-dependencies]`, `[runtime.*]`, `[scripts]`
   - Keys within sections: alphabetically sorted
-- [ ] `validate.go` — `Validate(pf) error`:
+- [x] `validate.go` — `Validate(pf) error`:
   - `name` non-empty, valid identifier (alphanumeric + hyphens)
   - `version` valid semver
   - `entry` is a `.pl` file path
