@@ -92,13 +92,24 @@ func Load(path string, opts LoadOptions) (*prolfile.ProlFile, error) {
 // Save writes a ProlFile to the given path with deterministic key ordering.
 // It uses BurntSushi/toml's encoder which preserves struct field order and
 // sorts map keys alphabetically.
+//
+// Writes are atomic (SEC-8): content is written to a temporary file first,
+// then renamed into place. A crash mid-write never leaves a partial Prolfile.toml.
 func Save(path string, pf *prolfile.ProlFile) error {
 	var buf bytes.Buffer
 	enc := toml.NewEncoder(&buf)
 	if err := enc.Encode(pf); err != nil {
 		return fmt.Errorf("encoding Prolfile.toml: %w", err)
 	}
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("writing temporary manifest: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("replacing manifest: %w", err)
+	}
+	return nil
 }
 
 // Discover walks upward from startDir looking for Prolfile.toml. If startDir

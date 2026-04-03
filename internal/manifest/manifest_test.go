@@ -108,12 +108,12 @@ func TestLoad_AutoDiscover(t *testing.T) {
 	dir := t.TempDir()
 	writeTOML(t, dir, validTOML)
 
-	// Change into dir so Discover finds it
-	orig, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(orig)
+	// Use Discover with an explicit startDir instead of os.Chdir —
+	// os.Chdir is process-wide and not goroutine-safe.
+	path, err := Discover(dir)
+	require.NoError(t, err)
 
-	pf, err := Load("", LoadOptions{ProlmVersion: "1.0.0"})
+	pf, err := Load(path, LoadOptions{ProlmVersion: "1.0.0"})
 	require.NoError(t, err)
 	assert.Equal(t, "test-project", pf.Package.Name)
 }

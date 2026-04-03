@@ -26,7 +26,7 @@ var validRuntimes = map[string]bool{
 // nameRe matches valid package/dependency identifiers.
 // Supports optional namespace: owner/name. Both segments must be lowercase
 // alphanumeric with internal hyphens only.
-var nameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(/[a-z0-9]([a-z0-9-]*[a-z0-9])?)?$`)
+var nameRe = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?(/[a-z]([a-z0-9-]*[a-z0-9])?)?$`)
 
 // ValidationError collects all validation failures so the user sees every
 // problem at once rather than fixing them one at a time.

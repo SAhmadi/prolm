@@ -86,25 +86,32 @@ func Load(path string) (*prolfile.LockFile, error) {
 // Writes are atomic (SEC-8): content is written to a temporary file first,
 // then renamed into place. A crash mid-write never leaves a partial lockfile.
 //
-// Note: Save sorts lf.Packages in place and normalises nil Dependencies slices
-// to empty slices. Callers that hold references to the LockFile after Save will
-// observe these mutations.
+// Save does not mutate lf or its Packages slice.
 func Save(path string, lf *prolfile.LockFile) error {
+	// Copy the slice so we don't mutate the caller's LockFile.
+	packages := make([]prolfile.LockEntry, len(lf.Packages))
+	copy(packages, lf.Packages)
+
 	// Sort packages by name for deterministic output.
-	sort.SliceStable(lf.Packages, func(i, j int) bool {
-		return lf.Packages[i].Name < lf.Packages[j].Name
+	sort.SliceStable(packages, func(i, j int) bool {
+		return packages[i].Name < packages[j].Name
 	})
 
 	// Ensure Dependencies is never nil so the encoder always emits the key.
-	for i := range lf.Packages {
-		if lf.Packages[i].Dependencies == nil {
-			lf.Packages[i].Dependencies = []string{}
+	// Operates on the local copy only.
+	for i := range packages {
+		if packages[i].Dependencies == nil {
+			packages[i].Dependencies = []string{}
 		}
 	}
 
+	// Build a shallow copy of lf with the sorted, normalised packages.
+	out := *lf
+	out.Packages = packages
+
 	var buf bytes.Buffer
 	enc := toml.NewEncoder(&buf)
-	if err := enc.Encode(lf); err != nil {
+	if err := enc.Encode(out); err != nil {
 		return fmt.Errorf("encoding Prolfile.lock: %w", err)
 	}
 

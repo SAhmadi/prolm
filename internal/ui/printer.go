@@ -87,13 +87,6 @@ func Error(format string, a ...any) {
 	printMsg(Err, "error", "  ✗  ", color.New(color.FgRed, color.Bold), format, a...)
 }
 
-// Fatal prints an error message and exits with code 1.
-// os.Exit is called after Error so deferred functions do not run.
-func Fatal(format string, a ...any) {
-	Error(format, a...)
-	os.Exit(1)
-}
-
 // Hint prints a muted hint or suggestion (faint) to Out.
 func Hint(format string, a ...any) {
 	printMsg(Out, "hint", "  ?  ", color.New(color.Faint), format, a...)

@@ -10,6 +10,10 @@ import (
 )
 
 func TestExecute_Version(t *testing.T) {
+	// NOTE: This test mutates the package-level rootCmd (SetArgs, SetOut, SetErr)
+	// and must NOT be run in parallel with other tests in this package.
+	// TODO: Refactor to construct a fresh cobra.Command per test to enable parallelism.
+
 	// Capture stdout by swapping the command's output writer.
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
@@ -29,6 +33,10 @@ func TestExecute_Version(t *testing.T) {
 }
 
 func TestExecute_Help(t *testing.T) {
+	// NOTE: This test mutates the package-level rootCmd (SetArgs, SetOut, SetErr)
+	// and must NOT be run in parallel with other tests in this package.
+	// TODO: Refactor to construct a fresh cobra.Command per test to enable parallelism.
+
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
