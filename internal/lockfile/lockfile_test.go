@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -475,4 +476,44 @@ func TestLoad_GitConflictError_ErrorsAs(t *testing.T) {
 
 	var gErr *GitConflictError
 	assert.True(t, errors.As(err, &gErr))
+}
+
+// TestSave_ConcurrentWrites verifies that simultaneous Save calls targeting
+// the same path do not corrupt the lockfile (SEC-7 / QUALITY-003).
+// Run with -race to catch data races in the atomic rename path.
+func TestSave_ConcurrentWrites(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Prolfile.lock")
+
+	lf := &prolfile.LockFile{
+		Meta: prolfile.LockMeta{LockVersion: 1},
+		Packages: []prolfile.LockEntry{
+			{
+				Name:     "clpfd",
+				Version:  "1.4.3",
+				Source:   "swi-pack-index",
+				URL:      "https://example.com/clpfd.tar.gz",
+				Checksum: "sha256:abc123",
+			},
+		},
+	}
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = Save(path, lf)
+		}()
+	}
+	wg.Wait()
+
+	// The final file must be valid, well-formed TOML — not a partial write.
+	got, err := Load(path)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, 1, got.Meta.LockVersion)
+	require.Len(t, got.Packages, 1)
+	assert.Equal(t, "clpfd", got.Packages[0].Name)
 }

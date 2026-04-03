@@ -25,8 +25,9 @@ var validRuntimes = map[string]bool{
 
 // nameRe matches valid package/dependency identifiers.
 // Supports optional namespace: owner/name. Both segments must be lowercase
-// alphanumeric with internal hyphens only.
-var nameRe = regexp.MustCompile(`^[a-z]([a-z0-9-]*[a-z0-9])?(/[a-z]([a-z0-9-]*[a-z0-9])?)?$`)
+// alphanumeric with internal hyphens or underscores (underscores are needed for
+// SWI-Prolog packs such as list_util and pro_sqlite3).
+var nameRe = regexp.MustCompile(`^[a-z]([a-z0-9_-]*[a-z0-9])?(/[a-z]([a-z0-9_-]*[a-z0-9])?)?$`)
 
 // ValidationError collects all validation failures so the user sees every
 // problem at once rather than fixing them one at a time.
@@ -73,7 +74,7 @@ func validateName(errs []string, name string) []string {
 		return append(errs, fmt.Sprintf("package name exceeds %d characters", maxNameLen))
 	}
 	if !nameRe.MatchString(name) {
-		return append(errs, fmt.Sprintf("package name %q is invalid: must be lowercase alphanumeric with hyphens, optionally namespaced as owner/name", name))
+		return append(errs, fmt.Sprintf("package name %q is invalid: must be lowercase alphanumeric with hyphens/underscores, optionally namespaced as owner/name", name))
 	}
 	return errs
 }

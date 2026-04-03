@@ -119,19 +119,24 @@
 
 *Depends on: 1.1*
 
-- [ ] `registry.go` — define `Registry` interface:
+- [x] `registry.go` — define `Registry` interface:
   - `Search(name) ([]PackageVersion, error)`
   - `Versions(name) ([]PackageVersion, error)`
   - `DownloadURL(name, version) (string, error)`
-- [ ] Define `PackageVersion` struct: `Name`, `Version`, `URL`, `Checksum`, `Dependencies []string`, `Yanked bool`
-- [ ] `swi.go` — `SWIRegistry` querying the SWI-Prolog pack index:
+- [x] Define `PackageVersion` struct: `Name`, `Version`, `URL`, `Checksum`, `Dependencies []string`, `Yanked bool`
+- [x] `swi.go` — `SWIRegistry` querying the SWI-Prolog pack index:
   - HTTPS only (SEC-4) — reject any HTTP URL
   - HTTP timeout: 30s per request
   - Validate all response fields (SEC-9)
-- [ ] `cache.go` — HTTP response caching:
+- [x] `cache.go` — HTTP response caching:
   - ETags / `If-None-Match` / 304 handling (per 8.4)
   - Cache to `~/.prolm/cache/registry/`
-- [ ] Respect `429 Too Many Requests` with exponential backoff (SEC-10)
+- [x] Respect `429 Too Many Requests` with exponential backoff (SEC-10)
+
+**Implementation note:** The SWI pack index has no public JSON API. Phase 1 uses
+HTML scraping of `/pack/list` and `/pack/list?p=<name>` via `golang.org/x/net/html`.
+If SWI changes their HTML structure the parse functions in `swi.go` must be updated.
+See BUGS.md for known issues deferred to later phases.
 
 **Testing:** Unit tests with `httptest.Server` mocking SWI responses. Malformed response handling. HTTP URL rejection. Timeout handling. Cache hit/miss.
 **Security:** SEC-4, SEC-9, SEC-10.
