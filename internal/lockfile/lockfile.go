@@ -137,13 +137,15 @@ func IsEmpty(lf *prolfile.LockFile) bool {
 }
 
 // containsConflictMarkers checks for Git merge conflict markers in raw data.
-// Only markers at the start of a line are detected, so values like
-// prolfile_hash = "sha256:=======" do not trigger false positives.
+// The <<<<<<< and >>>>>>> markers use HasPrefix because Git appends branch
+// names after them. The ======= separator is matched exactly (after trimming
+// whitespace) to avoid false positives on lines that merely start with "=".
 func containsConflictMarkers(data []byte) bool {
 	for _, line := range bytes.Split(data, []byte("\n")) {
-		if bytes.HasPrefix(line, []byte("<<<<<<<")) ||
-			bytes.HasPrefix(line, []byte("=======")) ||
-			bytes.HasPrefix(line, []byte(">>>>>>>")) {
+		trimmed := bytes.TrimSpace(line)
+		if bytes.HasPrefix(trimmed, []byte("<<<<<<<")) ||
+			bytes.Equal(trimmed, []byte("=======")) ||
+			bytes.HasPrefix(trimmed, []byte(">>>>>>>")) {
 			return true
 		}
 	}

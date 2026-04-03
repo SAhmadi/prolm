@@ -23,6 +23,37 @@ the exponential backoff default, which may be much shorter than the server asks 
 `http.ParseTime` and derive the delay from `time.Until(parsed)`. Return 0 if both
 parsing methods fail.
 
+### BUG-007 — Response size limit bypassed when cache is disabled
+
+**Severity:** Medium — memory exhaustion risk  
+**Affects:** `internal/registry/swi.go`  
+**Found in phase:** 1.5 review (PR #2)
+
+The 10 MB response size cap (`maxRegistryResponseBytes`) was only enforced
+inside the `if r.cache != nil` branch of `fetch()`. When caching was disabled
+(no `WithCache` option), the response body was returned directly without any
+size limit, allowing a malicious or misbehaving registry server to stream an
+unbounded response and exhaust memory.
+
+**Fix:** Moved the `LimitReader` + size check outside the cache conditional so
+it applies unconditionally. The cache-specific `Put()` call remains inside the
+conditional. Added `TestFetch_ResponseSizeLimit_NoCacheEnabled` to verify.
+
+### BUG-008 — `DownloadURL()` re-fetches version list on every call
+
+**Severity:** Low — performance issue, not a correctness bug  
+**Affects:** `internal/registry/swi.go`  
+**Found in phase:** 1.5 review (PR #2)
+
+`DownloadURL()` calls `r.Versions()` internally, which performs a full HTTP
+fetch + HTML parse of the pack detail page. During `prolm install` with N
+dependencies, each call to `DownloadURL()` triggers a separate HTTP request
+even if `Versions()` was already called for the same package. The HTTP cache
+mitigates this (304 responses), but the HTML re-parse still happens.
+
+**Fix:** Add an in-memory LRU cache of parsed versions keyed by package name,
+invalidated per session.
+
 ---
 
 ## DRY Violations
@@ -115,6 +146,23 @@ applies a max length. Apply it to all `Package` string fields.
 
 ---
 
+## Performance
+
+### PERF-001 — `Search()` fetches entire pack list and filters in-memory
+
+**Severity:** Low — acceptable for Phase 1, worth optimizing later  
+**Affects:** `internal/registry/swi.go`  
+**Found in phase:** 1.5 review (PR #2)
+
+`Search()` fetches the full `/pack/list` HTML page (all packages) and then
+filters by substring match in-memory. This is fine for the current SWI pack
+index size, but will not scale well if the number of packages grows significantly.
+
+**Fix:** Consider server-side search if the SWI pack index adds a query
+parameter, or cache the parsed pack list in memory for the session duration.
+
+---
+
 ## Tracking
 
 | ID | Severity | Status | Phase |
@@ -125,8 +173,11 @@ applies a max length. Apply it to all `Package` string fields.
 | BUG-004 | Medium | Fixed | Before 1.6 |
 | BUG-005 | Low | Open | Phase 2 |
 | BUG-006 | Low | Fixed | Before 1.6 |
+| BUG-007 | Medium | Fixed | Before 1.6 |
+| BUG-008 | Low | Open | Phase 2 |
 | DRY-001 | Medium | Open | Phase 2 |
 | DRY-002 | Low | Open | Phase 2 |
+| PERF-001 | Low | Open | Phase 2 |
 | QUALITY-001 | Low | Fixed (go mod tidy) | Immediately |
 | QUALITY-002 | Trivial | Fixed | Immediately |
 | QUALITY-003 | Low | Fixed | Before 1.15 |

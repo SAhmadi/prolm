@@ -199,20 +199,21 @@ func (r *SWIRegistry) fetch(ctx context.Context, path string) (io.ReadCloser, er
 		return nil, &ErrInvalidResponse{Reason: "304 response without cached body"}
 	}
 
-	// Read and cache the response body if caching is enabled.
-	// BUG-006: cap the read at maxRegistryResponseBytes to prevent memory
-	// exhaustion from a misbehaving or malicious registry server.
-	if r.cache != nil {
-		limited := io.LimitReader(result.body, maxRegistryResponseBytes+1)
-		data, readErr := io.ReadAll(limited)
-		result.body.Close()
-		if readErr != nil {
-			return nil, fmt.Errorf("reading response body: %w", readErr)
-		}
-		if int64(len(data)) > maxRegistryResponseBytes {
-			return nil, &ErrInvalidResponse{Reason: "registry response too large"}
-		}
+	// BUG-006 / BUG-007: cap the read at maxRegistryResponseBytes to prevent
+	// memory exhaustion from a misbehaving or malicious registry server.
+	// Applied unconditionally — caching status does not affect security limits.
+	limited := io.LimitReader(result.body, maxRegistryResponseBytes+1)
+	data, readErr := io.ReadAll(limited)
+	result.body.Close()
+	if readErr != nil {
+		return nil, fmt.Errorf("reading response body: %w", readErr)
+	}
+	if int64(len(data)) > maxRegistryResponseBytes {
+		return nil, &ErrInvalidResponse{Reason: "registry response too large"}
+	}
 
+	// Cache the response if caching is enabled.
+	if r.cache != nil {
 		entry := &cacheEntry{
 			URL:          fullURL,
 			ETag:         result.etag,
@@ -221,11 +222,9 @@ func (r *SWIRegistry) fetch(ctx context.Context, path string) (io.ReadCloser, er
 			FetchedAt:    time.Now(),
 		}
 		_ = r.cache.Put(fullURL, entry, data) // best-effort
-
-		return io.NopCloser(strings.NewReader(string(data))), nil
 	}
 
-	return result.body, nil
+	return io.NopCloser(strings.NewReader(string(data))), nil
 }
 
 // fetchResult holds the response from a successful HTTP request.
