@@ -509,3 +509,29 @@ func TestParseRetryAfter(t *testing.T) {
 	assert.Equal(t, time.Duration(0), parseRetryAfter("not-a-number"))
 	assert.Equal(t, time.Duration(0), parseRetryAfter("-1"))
 }
+
+// --- BUG-007: Response size limit must apply even without cache ---
+
+func TestFetch_ResponseSizeLimit_NoCacheEnabled(t *testing.T) {
+	// Serve a response larger than maxRegistryResponseBytes (10 MB).
+	// The registry is created WITHOUT WithCache, so the no-cache code path is used.
+	oversized := strings.Repeat("x", 10*1024*1024+1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(oversized))
+	}))
+	t.Cleanup(srv.Close)
+
+	reg, err := NewSWIRegistry(
+		WithBaseURL(srv.URL),
+		WithHTTPClient(srv.Client()),
+		// Deliberately no WithCache — this is the bug scenario.
+	)
+	require.NoError(t, err)
+
+	_, err = reg.Search(context.Background(), "anything")
+	require.Error(t, err)
+
+	var invalidResp *ErrInvalidResponse
+	assert.True(t, errors.As(err, &invalidResp), "expected ErrInvalidResponse, got: %v", err)
+}

@@ -450,6 +450,18 @@ prolfile_hash = "sha256:======="
 	assert.False(t, containsConflictMarkers([]byte(content)))
 }
 
+func TestContainsConflictMarkers_SeparatorExactMatch(t *testing.T) {
+	// The ======= separator must be the entire line content (trimmed).
+	// Lines that merely start with "=======" but have additional text
+	// should NOT be detected as conflict markers.
+	assert.False(t, containsConflictMarkers([]byte("======= some text\n")))
+	assert.False(t, containsConflictMarkers([]byte("========\n")))
+	// Exact separator with optional whitespace should still be detected.
+	assert.True(t, containsConflictMarkers([]byte("=======\n")))
+	assert.True(t, containsConflictMarkers([]byte("=======  \n")))
+	assert.True(t, containsConflictMarkers([]byte("  =======\n")))
+}
+
 // --- Error type tests ---
 
 func TestLockVersionTooNewError_Message(t *testing.T) {
