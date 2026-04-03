@@ -1,0 +1,24 @@
+package cmd
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+// Version is the current prolm version. Updated on release.
+const Version = "0.1.0-dev"
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the prolm version",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Fprintf(cmd.OutOrStdout(), "prolm %s\n", Version)
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
+}
