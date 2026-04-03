@@ -85,7 +85,10 @@ func TestValidate_NameCases(t *testing.T) {
 		{"empty-namespace", "/name", true},
 		{"empty-name-after-slash", "owner/", true},
 		{"double-slash", "a/b/c", true},
-		{"underscore", "my_pack", true},
+		{"underscore", "my_pack", false},              // SWI packs like list_util use underscores
+		{"underscore-swi-style", "pro_sqlite3", false}, // real SWI pack name
+		{"namespaced-underscore", "owner/my_pack", false},
+		{"leading-underscore", "_foo", true},
 		{"dot", "my.pack", true},
 	}
 	for _, tt := range tests {
@@ -247,6 +250,15 @@ func TestValidate_DepNameValidation(t *testing.T) {
 	err := Validate(pf)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a valid identifier")
+}
+
+func TestValidate_DepNameWithUnderscore(t *testing.T) {
+	// SWI-Prolog packs such as list_util and pro_sqlite3 use underscores.
+	// The manifest must accept them, matching the registry's nameRe.
+	pf := validProlFile()
+	pf.Dependencies = map[string]string{"list_util": "^1.0", "pro_sqlite3": "^0.9"}
+	err := Validate(pf)
+	assert.NoError(t, err)
 }
 
 func TestValidate_DevDepValidation(t *testing.T) {
