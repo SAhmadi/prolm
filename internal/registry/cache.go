@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/prolm/prolm/internal/atomicfile"
-	"time"
 )
 
 // Cache provides HTTP response caching with ETag / Last-Modified support.

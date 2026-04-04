@@ -20,6 +20,7 @@ All known issues have been resolved. This tracking table is kept for historical 
 | BUG-006 | Low | Fixed | Before 1.6 |
 | BUG-007 | Medium | Fixed | Before 1.6 |
 | BUG-008 | Low | Fixed | Before 1.6 |
+| BUG-009 | Medium | Fixed | Before merge of PR #5 |
 | DRY-001 | Medium | Fixed | Before 1.6 |
 | DRY-002 | Low | Fixed | Before 1.6 |
 | PERF-001 | Low | Fixed | Before 1.6 |
@@ -27,5 +28,6 @@ All known issues have been resolved. This tracking table is kept for historical 
 | QUALITY-002 | Trivial | Fixed | Immediately |
 | QUALITY-003 | Low | Fixed | Before 1.15 |
 | QUALITY-004 | Low | Fixed | Before 1.6 |
+| QUALITY-005 | Trivial | Fixed | Before merge of PR #5 |
 | DOC-001 | Low | Fixed (swi.go + ROADMAP) | Immediately |
 | DOC-002 | Low | Fixed (swi.go comments) | Immediately |

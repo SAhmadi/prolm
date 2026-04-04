@@ -547,6 +547,31 @@ func TestDownloadURL_CachesVersions(t *testing.T) {
 	assert.Equal(t, int32(1), fetchCount.Load())
 }
 
+// --- BUG-009: Versions() populates the in-memory cache ---
+
+func TestVersions_PopulatesCache(t *testing.T) {
+	var fetchCount atomic.Int32
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fetchCount.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(packDetailHTML))
+	})
+
+	// Direct Versions() call — fetches from server.
+	versions, err := reg.Versions(context.Background(), "clpfd")
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
+	assert.Equal(t, int32(1), fetchCount.Load())
+
+	// DownloadURL for the same package must use the cache, not re-fetch.
+	url1, err := reg.DownloadURL(context.Background(), "clpfd", "1.4.3")
+	require.NoError(t, err)
+	assert.Contains(t, url1, "1.4.3")
+
+	// Still only one HTTP request.
+	assert.Equal(t, int32(1), fetchCount.Load())
+}
+
 // --- PERF-001: Search caches pack list ---
 
 func TestSearch_CachesPackList(t *testing.T) {

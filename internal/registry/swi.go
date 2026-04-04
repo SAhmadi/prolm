@@ -127,6 +127,16 @@ func (r *SWIRegistry) Versions(ctx context.Context, name string) ([]PackageVersi
 	if len(versions) == 0 {
 		return nil, &ErrPackageNotFound{Name: name, Registry: "swi-pack-index"}
 	}
+
+	// Populate the in-memory cache so subsequent cachedVersions / DownloadURL
+	// calls for the same package skip the network entirely (BUG-009).
+	r.mu.Lock()
+	if r.versionCache == nil {
+		r.versionCache = make(map[string][]PackageVersion)
+	}
+	r.versionCache[name] = versions
+	r.mu.Unlock()
+
 	return versions, nil
 }
 
