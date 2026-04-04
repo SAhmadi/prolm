@@ -56,13 +56,22 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 	defer unlock()
 
 	deps := allDeps(manifest)
+
+	// Deterministic install order: sort dependency names alphabetically (CLAUDE.md §6).
+	names := make([]string, 0, len(deps))
+	for n := range deps {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
 	newLock := &prolfile.LockFile{
 		Meta: prolfile.LockMeta{
 			LockVersion: prolfile.CurrentLockVersion,
 		},
 	}
 
-	for name, constraint := range deps {
+	for _, name := range names {
+		constraint := deps[name]
 		entry, err := installOne(ctx, name, constraint, lock, store, reg, cacheDir)
 		if err != nil {
 			return nil, fmt.Errorf("installing %s: %w", name, err)
@@ -80,27 +89,16 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 
 // installOne handles the install flow for a single dependency.
 func installOne(ctx context.Context, name, constraint string, lock *prolfile.LockFile, store *Store, reg registry.Registry, cacheDir string) (*prolfile.LockEntry, error) {
-	// Fast path: already in lock and installed in store.
+	// Fast path: already in lock and installed in store — skip all cache I/O.
+	// The pack is already unpacked; tarball cache integrity is irrelevant here.
 	if existing := findLockEntry(lock, name); existing != nil {
 		if store.IsInstalled(name, existing.Version) {
 			// SEC-14: validate URL origin.
 			if err := validateLockURL(existing.URL); err != nil {
 				return nil, err
 			}
-			// SEC-1: verify cached tarball checksum if available in cache.
-			cached := cachePath(cacheDir, name, existing.Version)
-			if _, statErr := os.Stat(cached); statErr == nil && existing.Checksum != "" {
-				if err := Verify(cached, existing.Checksum); err != nil {
-					// Cache is corrupt; re-download.
-					ui.Warn("%s@%s cached tarball failed checksum, re-downloading", name, existing.Version)
-				} else {
-					ui.Success("already installed: %s@%s", name, existing.Version)
-					return existing, nil
-				}
-			} else {
-				ui.Success("already installed: %s@%s", name, existing.Version)
-				return existing, nil
-			}
+			ui.Success("already installed: %s@%s", name, existing.Version)
+			return existing, nil
 		}
 	}
 

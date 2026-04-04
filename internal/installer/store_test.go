@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -125,14 +126,31 @@ func TestStore_Lock_Timeout(t *testing.T) {
 	s := NewStore(dir)
 	s.lockTimeout = 500 * time.Millisecond
 
-	// Pre-create the lock file to simulate another process.
+	// Pre-create the lock file with the current process's PID so it is NOT
+	// considered stale (the process is alive), forcing a real timeout.
 	lockPath := filepath.Join(dir, ".lock")
-	require.NoError(t, os.WriteFile(lockPath, []byte("12345\n"), 0644))
+	require.NoError(t, os.WriteFile(lockPath, fmt.Appendf(nil, "%d\n", os.Getpid()), 0644))
 
 	_, err := s.Lock()
 	var locked *ErrStoreLocked
 	require.ErrorAs(t, err, &locked)
 	assert.Equal(t, lockPath, locked.LockPath)
+}
+
+func TestStore_Lock_StaleDetection(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	s.lockTimeout = 500 * time.Millisecond // short — stale removal must be instant
+
+	// Write a lock file with a PID that cannot be alive (max int32 is well
+	// outside the Linux/macOS PID range and will never be assigned).
+	lockPath := filepath.Join(dir, ".lock")
+	require.NoError(t, os.WriteFile(lockPath, []byte("999999999\n"), 0644))
+
+	// Lock must succeed immediately (stale lock auto-removed), not time out.
+	unlock, err := s.Lock()
+	require.NoError(t, err, "expected stale lock to be cleared and lock to succeed")
+	unlock()
 }
 
 func TestStore_Lock_UnlockIdempotent(t *testing.T) {

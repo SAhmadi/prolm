@@ -321,6 +321,59 @@ func TestInstall_YankedVersionSkipped(t *testing.T) {
 	assert.Equal(t, "1.0.0", lf.Packages[0].Version) // Skipped yanked 2.0.0.
 }
 
+func TestInstall_DeterministicOrder(t *testing.T) {
+	// Verify that Install processes packages in alphabetical order regardless of
+	// map iteration order. We record the server-side request order to confirm.
+	storeDir, cacheDir := setupTestInstall(t)
+
+	tarball := makeTarball(t, map[string]string{"pkg/main.pl": "ok."})
+
+	var requestOrder []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract package name from path, e.g. "/alpha-1.0.0.tar.gz" → "alpha"
+		for _, name := range []string{"alpha", "bravo", "charlie"} {
+			if strings.Contains(r.URL.Path, name) {
+				requestOrder = append(requestOrder, name)
+			}
+		}
+		w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha":   {{Name: "alpha", Version: "1.0.0"}},
+			"bravo":   {{Name: "bravo", Version: "1.0.0"}},
+			"charlie": {{Name: "charlie", Version: "1.0.0"}},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0":   srv.URL + "/alpha-1.0.0.tar.gz",
+			"bravo@1.0.0":   srv.URL + "/bravo-1.0.0.tar.gz",
+			"charlie@1.0.0": srv.URL + "/charlie-1.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		// Deliberately declared out of alphabetical order.
+		Dependencies: map[string]string{"charlie": "*", "alpha": "*", "bravo": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 3)
+
+	// Lockfile packages must be sorted alphabetically.
+	assert.Equal(t, "alpha", lf.Packages[0].Name)
+	assert.Equal(t, "bravo", lf.Packages[1].Name)
+	assert.Equal(t, "charlie", lf.Packages[2].Name)
+
+	// Downloads must have happened in alphabetical order.
+	assert.Equal(t, []string{"alpha", "bravo", "charlie"}, requestOrder)
+}
+
 func TestValidateLockURL(t *testing.T) {
 	tests := []struct {
 		name    string

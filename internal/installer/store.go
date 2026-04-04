@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 )
 
@@ -55,6 +58,31 @@ func (s *Store) EnsureDir() error {
 	return os.MkdirAll(s.baseDir, 0755)
 }
 
+// isLockStale reads the PID from a lock file and returns true if that process
+// is no longer running. Returns false on any read error (treat as live lock).
+func isLockStale(lockPath string) bool {
+	data, err := os.ReadFile(lockPath)
+	if err != nil {
+		return false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		return false
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		// On Unix, FindProcess never fails; on Windows it would error for
+		// non-existent PIDs, so treat that as stale.
+		return true
+	}
+	// Send signal 0: no-op that checks process existence.
+	// ESRCH = process does not exist (stale).
+	// EPERM = exists but owned by another user (still alive).
+	// nil   = our process, alive.
+	err = proc.Signal(syscall.Signal(0))
+	return err != nil && err != syscall.EPERM
+}
+
 // Lock acquires an exclusive file lock on <baseDir>/.lock (SEC-7).
 // Returns an unlock function that must be called (typically via defer).
 // Uses O_CREATE|O_EXCL for atomic lock creation without external dependencies.
@@ -77,6 +105,14 @@ func (s *Store) Lock() (unlock func(), err error) {
 		if !os.IsExist(err) {
 			return nil, fmt.Errorf("creating lock file: %w", err)
 		}
+
+		// Lock file exists — check if the owning process is still alive.
+		// If it is stale (process gone), remove the lock file and retry immediately.
+		if isLockStale(lockPath) {
+			os.Remove(lockPath)
+			continue
+		}
+
 		if time.Now().After(deadline) {
 			return nil, &ErrStoreLocked{LockPath: lockPath}
 		}

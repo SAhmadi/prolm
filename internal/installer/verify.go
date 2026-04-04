@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strings"
 )
 
 // checksumRe matches a valid sha256 checksum string: "sha256:" followed by 64 hex chars.
@@ -55,7 +54,7 @@ func Verify(filePath string, expectedChecksum string) error {
 		return err
 	}
 
-	if !strings.EqualFold(got, expectedChecksum) {
+	if got != expectedChecksum {
 		os.Remove(filePath) // best-effort delete on mismatch
 		return &ErrChecksumMismatch{
 			FilePath: filePath,

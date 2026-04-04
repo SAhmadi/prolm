@@ -179,13 +179,7 @@ func (r *SWIRegistry) cachedVersions(ctx context.Context, name string) ([]Packag
 		return nil, err
 	}
 
-	r.mu.Lock()
-	if r.versionCache == nil {
-		r.versionCache = make(map[string][]PackageVersion)
-	}
-	r.versionCache[name] = versions
-	r.mu.Unlock()
-
+	// Versions() already wrote to r.versionCache[name] (QUALITY-007).
 	return versions, nil
 }
 
