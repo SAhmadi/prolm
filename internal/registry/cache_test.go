@@ -160,7 +160,7 @@ func TestCache_ETagFlow(t *testing.T) {
 			return
 		}
 		w.Header().Set("ETag", `"etag-v1"`)
-		w.Write([]byte(packListHTML))
+		w.Write([]byte(packDetailHTML))
 	}))
 	t.Cleanup(srv.Close)
 
@@ -176,14 +176,16 @@ func TestCache_ETagFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// First request: cache miss, gets full response.
-	results, err := reg.Search(context.Background(), "http")
+	// Use Versions() to test HTTP-level ETag caching without the
+	// in-memory pack list cache (PERF-001) short-circuiting the second call.
+	versions, err := reg.Versions(context.Background(), "clpfd")
 	require.NoError(t, err)
-	require.Len(t, results, 1)
+	require.NotEmpty(t, versions)
 	assert.Equal(t, 1, requestCount)
 
 	// Second request: sends If-None-Match, gets 304, uses cached body.
-	results, err = reg.Search(context.Background(), "http")
+	versions, err = reg.Versions(context.Background(), "clpfd")
 	require.NoError(t, err)
-	require.Len(t, results, 1)
+	require.NotEmpty(t, versions)
 	assert.Equal(t, 2, requestCount)
 }

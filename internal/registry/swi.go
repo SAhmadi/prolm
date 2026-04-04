@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/net/html"
@@ -61,6 +62,11 @@ type SWIRegistry struct {
 	baseURL string
 	client  *http.Client
 	cache   *Cache
+
+	// In-memory caches for parsed results (per-session, no TTL needed).
+	mu            sync.Mutex
+	versionCache  map[string][]PackageVersion // keyed by package name
+	packListCache []PackageVersion            // cached /pack/list results
 }
 
 // NewSWIRegistry creates a new SWI pack index client.
@@ -86,13 +92,7 @@ func NewSWIRegistry(opts ...SWIOption) (*SWIRegistry, error) {
 
 // Search returns packages whose name contains the query string.
 func (r *SWIRegistry) Search(ctx context.Context, query string) ([]PackageVersion, error) {
-	body, err := r.fetch(ctx, "/pack/list")
-	if err != nil {
-		return nil, fmt.Errorf("fetching pack list: %w", err)
-	}
-	defer body.Close()
-
-	all, err := parsePackList(body)
+	all, err := r.cachedPackList(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (r *SWIRegistry) Versions(ctx context.Context, name string) ([]PackageVersi
 
 // DownloadURL returns the HTTPS download URL for a specific package version.
 func (r *SWIRegistry) DownloadURL(ctx context.Context, name, version string) (string, error) {
-	versions, err := r.Versions(ctx, name)
+	versions, err := r.cachedVersions(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -154,6 +154,64 @@ func (r *SWIRegistry) DownloadURL(ctx context.Context, name, version string) (st
 		}
 	}
 	return "", &ErrVersionNotFound{Name: name, Version: version}
+}
+
+// cachedVersions returns versions for a package, using the in-memory cache
+// if available. This avoids re-fetching and re-parsing the pack detail page
+// when DownloadURL is called after Versions for the same package (BUG-008).
+func (r *SWIRegistry) cachedVersions(ctx context.Context, name string) ([]PackageVersion, error) {
+	r.mu.Lock()
+	if r.versionCache != nil {
+		if cached, ok := r.versionCache[name]; ok {
+			r.mu.Unlock()
+			return cached, nil
+		}
+	}
+	r.mu.Unlock()
+
+	versions, err := r.Versions(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	r.mu.Lock()
+	if r.versionCache == nil {
+		r.versionCache = make(map[string][]PackageVersion)
+	}
+	r.versionCache[name] = versions
+	r.mu.Unlock()
+
+	return versions, nil
+}
+
+// cachedPackList returns the full pack list, using the in-memory cache if
+// available. This avoids re-fetching /pack/list on repeated Search calls
+// within the same session (PERF-001).
+func (r *SWIRegistry) cachedPackList(ctx context.Context) ([]PackageVersion, error) {
+	r.mu.Lock()
+	if r.packListCache != nil {
+		cached := r.packListCache
+		r.mu.Unlock()
+		return cached, nil
+	}
+	r.mu.Unlock()
+
+	body, err := r.fetch(ctx, "/pack/list")
+	if err != nil {
+		return nil, fmt.Errorf("fetching pack list: %w", err)
+	}
+	defer body.Close()
+
+	all, err := parsePackList(body)
+	if err != nil {
+		return nil, err
+	}
+
+	r.mu.Lock()
+	r.packListCache = all
+	r.mu.Unlock()
+
+	return all, nil
 }
 
 // maxRegistryResponseBytes is the upper bound for any single registry HTML
@@ -323,16 +381,28 @@ func (r *SWIRegistry) doRequestWithRetries(ctx context.Context, rawURL string, c
 	return nil, &ErrRateLimited{}
 }
 
-// parseRetryAfter parses a Retry-After header value as seconds.
+// parseRetryAfter parses a Retry-After header value (RFC 9110 §10.2.4).
+// Supports both integer seconds and HTTP-date format.
+// Returns 0 if the value is empty, unparseable, or a date in the past.
 func parseRetryAfter(value string) time.Duration {
 	if value == "" {
 		return 0
 	}
-	secs, err := strconv.Atoi(value)
-	if err != nil || secs < 0 {
+	// Try integer seconds first.
+	if secs, err := strconv.Atoi(value); err == nil {
+		if secs < 0 {
+			return 0
+		}
+		return time.Duration(secs) * time.Second
+	}
+	// Try HTTP-date format (e.g. "Wed, 21 Oct 2025 07:28:00 GMT").
+	if t, err := http.ParseTime(value); err == nil {
+		if delay := time.Until(t); delay > 0 {
+			return delay
+		}
 		return 0
 	}
-	return time.Duration(secs) * time.Second
+	return 0
 }
 
 // --- HTML Parsing ---
@@ -350,23 +420,19 @@ func parsePackList(r io.Reader) ([]PackageVersion, error) {
 	// Walk the DOM looking for table rows with pack data.
 	// The pack list page has a table with columns: Name, Version, Downloads, Rating, Description.
 	// Pack names are in <a> tags linking to /pack/list?p=<name>.
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
+	walkDOM(doc, func(n *html.Node) bool {
 		if n.Type == html.ElementNode && n.Data == "tr" {
 			if pv, ok := parsePackListRow(n); ok {
 				if err := validatePackageName(pv.Name); err != nil {
 					// Skip entries with invalid names rather than failing entirely (SEC-9).
-					return
+					return true
 				}
 				results = append(results, pv)
-				return
+				return true // don't recurse into matched <tr>
 			}
 		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
-		}
-	}
-	walk(doc)
+		return false
+	})
 
 	return results, nil
 }
@@ -486,6 +552,17 @@ func parseDetailRow(tr *html.Node, name string) (PackageVersion, bool) {
 
 // --- HTML utility functions ---
 
+// walkDOM recursively visits every node in the tree rooted at n.
+// If fn returns true the node's children are skipped (short-circuit).
+func walkDOM(n *html.Node, fn func(*html.Node) bool) {
+	if fn(n) {
+		return
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		walkDOM(c, fn)
+	}
+}
+
 // extractText recursively extracts all text content from a node.
 func extractText(n *html.Node) string {
 	if n.Type == html.TextNode {
@@ -533,8 +610,7 @@ func extractPackNameFromHref(href string) string {
 // findHrefs returns all href attribute values from <a> tags under n.
 func findHrefs(n *html.Node) []string {
 	var hrefs []string
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
+	walkDOM(n, func(node *html.Node) bool {
 		if node.Type == html.ElementNode && node.Data == "a" {
 			for _, attr := range node.Attr {
 				if attr.Key == "href" {
@@ -542,27 +618,20 @@ func findHrefs(n *html.Node) []string {
 				}
 			}
 		}
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
-		}
-	}
-	walk(n)
+		return false
+	})
 	return hrefs
 }
 
 // findElements finds all descendant elements with the given tag name.
 func findElements(n *html.Node, tag string) []*html.Node {
 	var result []*html.Node
-	var walk func(*html.Node)
-	walk = func(node *html.Node) {
+	walkDOM(n, func(node *html.Node) bool {
 		if node.Type == html.ElementNode && node.Data == tag {
 			result = append(result, node)
 		}
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
-		}
-	}
-	walk(n)
+		return false
+	})
 	return result
 }
 

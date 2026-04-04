@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/html"
 )
 
 // --- Sample HTML fixtures ---
@@ -504,10 +505,87 @@ func TestIsDownloadURL(t *testing.T) {
 }
 
 func TestParseRetryAfter(t *testing.T) {
+	// Integer seconds.
 	assert.Equal(t, 5*time.Second, parseRetryAfter("5"))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("0"))
 	assert.Equal(t, time.Duration(0), parseRetryAfter(""))
 	assert.Equal(t, time.Duration(0), parseRetryAfter("not-a-number"))
 	assert.Equal(t, time.Duration(0), parseRetryAfter("-1"))
+
+	// HTTP-date in the future (BUG-005).
+	future := time.Now().Add(30 * time.Second).UTC().Format(http.TimeFormat)
+	d := parseRetryAfter(future)
+	assert.Greater(t, d, 20*time.Second, "expected ~30s delay for future HTTP-date")
+	assert.Less(t, d, 35*time.Second)
+
+	// HTTP-date in the past returns 0.
+	past := time.Now().Add(-10 * time.Second).UTC().Format(http.TimeFormat)
+	assert.Equal(t, time.Duration(0), parseRetryAfter(past))
+}
+
+// --- BUG-008: DownloadURL caches Versions results ---
+
+func TestDownloadURL_CachesVersions(t *testing.T) {
+	var fetchCount atomic.Int32
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fetchCount.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(packDetailHTML))
+	})
+
+	// First call fetches from server.
+	url1, err := reg.DownloadURL(context.Background(), "clpfd", "1.4.3")
+	require.NoError(t, err)
+	assert.Contains(t, url1, "1.4.3")
+
+	// Second call for a different version should use cached versions.
+	url2, err := reg.DownloadURL(context.Background(), "clpfd", "1.4.2")
+	require.NoError(t, err)
+	assert.Contains(t, url2, "1.4.2")
+
+	// Only one HTTP request for the detail page.
+	assert.Equal(t, int32(1), fetchCount.Load())
+}
+
+// --- PERF-001: Search caches pack list ---
+
+func TestSearch_CachesPackList(t *testing.T) {
+	var fetchCount atomic.Int32
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fetchCount.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(packListHTML))
+	})
+
+	// First search fetches from server.
+	results1, err := reg.Search(context.Background(), "clp")
+	require.NoError(t, err)
+	require.NotEmpty(t, results1)
+
+	// Second search with different query uses cached pack list.
+	results2, err := reg.Search(context.Background(), "http")
+	require.NoError(t, err)
+	require.NotEmpty(t, results2)
+
+	// Only one HTTP fetch for /pack/list.
+	assert.Equal(t, int32(1), fetchCount.Load())
+}
+
+// --- DRY-002: walkDOM helper ---
+
+func TestWalkDOM_ShortCircuit(t *testing.T) {
+	doc, err := html.Parse(strings.NewReader("<div><p>a</p><p>b</p></div>"))
+	require.NoError(t, err)
+
+	var visited int
+	walkDOM(doc, func(n *html.Node) bool {
+		if n.Type == html.ElementNode && n.Data == "p" {
+			visited++
+			return true // skip children of <p>
+		}
+		return false
+	})
+	assert.Equal(t, 2, visited)
 }
 
 // --- BUG-007: Response size limit must apply even without cache ---

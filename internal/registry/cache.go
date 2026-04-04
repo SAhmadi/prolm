@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/prolm/prolm/internal/atomicfile"
 	"time"
 )
 
@@ -82,10 +84,10 @@ func (c *Cache) Put(rawURL string, entry *cacheEntry, body []byte) error {
 		return fmt.Errorf("marshalling cache entry: %w", err)
 	}
 
-	if err := atomicWrite(bodyPath, body); err != nil {
+	if err := atomicfile.Write(bodyPath, body, 0644); err != nil {
 		return fmt.Errorf("writing cache body: %w", err)
 	}
-	if err := atomicWrite(metaPath, metaData); err != nil {
+	if err := atomicfile.Write(metaPath, metaData, 0644); err != nil {
 		os.Remove(bodyPath) // best-effort cleanup
 		return fmt.Errorf("writing cache metadata: %w", err)
 	}
@@ -96,17 +98,4 @@ func (c *Cache) Put(rawURL string, entry *cacheEntry, body []byte) error {
 func cacheKey(rawURL string) string {
 	h := sha256.Sum256([]byte(rawURL))
 	return hex.EncodeToString(h[:])
-}
-
-// atomicWrite writes data to path via a temporary file and rename (SEC-8).
-func atomicWrite(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp) // best-effort cleanup
-		return err
-	}
-	return nil
 }

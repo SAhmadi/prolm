@@ -10,6 +10,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/Masterminds/semver/v3"
+	"github.com/prolm/prolm/internal/atomicfile"
 	"github.com/prolm/prolm/pkg/prolfile"
 )
 
@@ -101,13 +102,8 @@ func Save(path string, pf *prolfile.ProlFile) error {
 	if err := enc.Encode(pf); err != nil {
 		return fmt.Errorf("encoding Prolfile.toml: %w", err)
 	}
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("writing temporary manifest: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("replacing manifest: %w", err)
+	if err := atomicfile.Write(path, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("saving manifest: %w", err)
 	}
 	return nil
 }

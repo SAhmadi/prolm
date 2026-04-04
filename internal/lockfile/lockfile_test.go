@@ -398,7 +398,7 @@ func TestSave_ErrorOnWriteToNonExistentDir(t *testing.T) {
 	// exercised implicitly but cannot be triggered portably without OS mocking.
 	err := Save("/nonexistent-dir/Prolfile.lock", sampleLockFile())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "writing temporary lockfile")
+	assert.Contains(t, err.Error(), "saving lockfile")
 }
 
 func TestSave_NilDependenciesBecomesEmptySlice(t *testing.T) {
