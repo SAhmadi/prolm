@@ -147,17 +147,17 @@ See BUGS.md for known issues deferred to later phases.
 
 This is the most security-critical sub-phase.
 
-- [ ] `fetch.go` — `Fetch(url, destPath) error`:
+- [x] `fetch.go` — `Fetch(url, destPath) error`:
   - Progress bar via UI helpers
   - HTTPS only (SEC-4)
   - Max tarball size: 50 MB, configurable via `PROLM_MAX_TARBALL_SIZE` (SEC-12)
   - Respect 429 with backoff (SEC-10)
-- [ ] `verify.go` — `Verify(filePath, expectedChecksum) error`:
+- [x] `verify.go` — `Verify(filePath, expectedChecksum) error`:
   - Compute SHA-256, compare to expected (SEC-1)
   - On mismatch: **delete the file**, return hard error
   - Checksum format: `sha256:<hex>`
-- [ ] `verify.go` — `ComputeChecksum(filePath) (string, error)`
-- [ ] `unpack.go` — `Unpack(tarballPath, destDir) error`:
+- [x] `verify.go` — `ComputeChecksum(filePath) (string, error)`
+- [x] `unpack.go` — `Unpack(tarballPath, destDir) error`:
   - Implement `safeExtract()` exactly as in CLAUDE.md 8.5 (SEC-2)
   - Reject absolute paths
   - Reject symlinks pointing outside destDir (SEC-13)
@@ -167,12 +167,12 @@ This is the most security-critical sub-phase.
   - Max file count: 10,000 files (SEC-12)
   - Max single file size: 20 MB (SEC-12)
   - On any violation: delete partial extraction, return hard error
-- [ ] `store.go` — `Store` struct managing `~/.prolm/store/`:
+- [x] `store.go` — `Store` struct managing `~/.prolm/store/`:
   - `PackPath(name, version) string`
   - `IsInstalled(name, version) bool`
   - `EnsureDir()` — create store dir with permissions 0755 (SEC-6)
   - File lock on `~/.prolm/store/.lock` for write ops (SEC-7)
-- [ ] `installer.go` — `Install(manifest, lock, opts) (*LockFile, error)`:
+- [x] `installer.go` — `Install(manifest, lock, opts) (*LockFile, error)`:
   - Full install flow per CLAUDE.md section 4 flow diagram
   - For each dep: check lock -> check store -> fetch -> verify -> unpack
   - Validate lockfile URLs against known registry origins (SEC-14)
