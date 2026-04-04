@@ -16,6 +16,10 @@ const maxNameLen = 128
 // maxEntryLen is the maximum allowed length for the entry file path.
 const maxEntryLen = 256
 
+// maxStringFieldLen is the maximum allowed length for free-text string fields
+// (description, license, homepage, authors, scripts values).
+const maxStringFieldLen = 1024
+
 // validRuntimes is the set of supported Prolog runtimes.
 var validRuntimes = map[string]bool{
 	"swi":    true,
@@ -53,9 +57,16 @@ func Validate(pf *prolfile.ProlFile) error {
 	errs = validateVersion(errs, pf.Package.Version)
 	errs = validateEntry(errs, pf.Package.Entry)
 	errs = validateRuntime(errs, pf.Package.Runtime)
+	errs = validateStringField(errs, "description", pf.Package.Description)
+	errs = validateStringField(errs, "license", pf.Package.License)
+	errs = validateStringField(errs, "homepage", pf.Package.Homepage)
+	for i, a := range pf.Package.Authors {
+		errs = validateStringField(errs, fmt.Sprintf("authors[%d]", i), a)
+	}
 	errs = validateDeps(errs, "dependencies", pf.Dependencies)
 	errs = validateDeps(errs, "dev-dependencies", pf.DevDependencies)
 	errs = validateRuntimeConfigs(errs, pf.Runtime)
+	errs = validateScripts(errs, pf.Scripts)
 
 	if len(errs) > 0 {
 		return &ValidationError{Errors: errs}
@@ -149,6 +160,28 @@ func validateRuntimeConfigs(errs []string, runtimes map[string]prolfile.RuntimeC
 		if !validRuntimes[name] {
 			errs = append(errs, fmt.Sprintf("[runtime.%s] is not a supported runtime; must be one of: swi, gnu, scryer", name))
 		}
+	}
+	return errs
+}
+
+// validateStringField checks a free-text field for null bytes and excessive length.
+func validateStringField(errs []string, field, value string) []string {
+	if value == "" {
+		return errs
+	}
+	if containsNullByte(value) {
+		errs = append(errs, fmt.Sprintf("%s contains null byte", field))
+	}
+	if len(value) > maxStringFieldLen {
+		errs = append(errs, fmt.Sprintf("%s exceeds %d characters", field, maxStringFieldLen))
+	}
+	return errs
+}
+
+// validateScripts checks script values for null bytes and excessive length.
+func validateScripts(errs []string, scripts map[string]string) []string {
+	for name, value := range scripts {
+		errs = validateStringField(errs, fmt.Sprintf("[scripts].%s", name), value)
 	}
 	return errs
 }

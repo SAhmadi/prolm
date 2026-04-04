@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
+	"github.com/prolm/prolm/internal/atomicfile"
 	"github.com/prolm/prolm/pkg/prolfile"
 )
 
@@ -117,17 +118,10 @@ func Save(path string, lf *prolfile.LockFile) error {
 
 	content := lockfileHeader + buf.String()
 
-	// Atomic write: write to tmp, then rename (SEC-8).
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("writing temporary lockfile: %w", err)
+	// Atomic write (SEC-8).
+	if err := atomicfile.Write(path, []byte(content), 0644); err != nil {
+		return fmt.Errorf("saving lockfile: %w", err)
 	}
-
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath) // best-effort cleanup
-		return fmt.Errorf("replacing lockfile: %w", err)
-	}
-
 	return nil
 }
 

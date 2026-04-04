@@ -297,6 +297,56 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	assert.GreaterOrEqual(t, len(ve.Errors), 4, "expected at least 4 validation errors")
 }
 
+// --- QUALITY-004: Null byte checks on free-text string fields ---
+
+func TestValidate_NullByteInDescription(t *testing.T) {
+	pf := validProlFile()
+	pf.Package.Description = "hello\x00world"
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "description contains null byte")
+}
+
+func TestValidate_NullByteInLicense(t *testing.T) {
+	pf := validProlFile()
+	pf.Package.License = "MIT\x00"
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "license contains null byte")
+}
+
+func TestValidate_NullByteInHomepage(t *testing.T) {
+	pf := validProlFile()
+	pf.Package.Homepage = "https://example.com\x00"
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "homepage contains null byte")
+}
+
+func TestValidate_NullByteInAuthors(t *testing.T) {
+	pf := validProlFile()
+	pf.Package.Authors = []string{"Ada\x00Evil"}
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authors[0] contains null byte")
+}
+
+func TestValidate_NullByteInScripts(t *testing.T) {
+	pf := validProlFile()
+	pf.Scripts = map[string]string{"start": "prolm run\x00"}
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "[scripts].start contains null byte")
+}
+
+func TestValidate_OverlongDescription(t *testing.T) {
+	pf := validProlFile()
+	pf.Package.Description = strings.Repeat("a", maxStringFieldLen+1)
+	err := Validate(pf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "description exceeds")
+}
+
 func TestValidationError_SingleMessage(t *testing.T) {
 	ve := &ValidationError{Errors: []string{"name is required"}}
 	assert.Equal(t, "validation error: name is required", ve.Error())
