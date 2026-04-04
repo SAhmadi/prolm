@@ -163,6 +163,24 @@ func TestUnpack_SymlinkWithinDestDir(t *testing.T) {
 	assert.Equal(t, "real.pl", target)
 }
 
+func TestUnpack_HardlinkValid(t *testing.T) {
+	dir := t.TempDir()
+	tarball := writeTarGz(t, dir, []tarEntry{
+		{Name: "original.pl", Body: []byte("hello")},
+		{Name: "linked.pl", Typeflag: tar.TypeLink, Linkname: "original.pl"},
+	})
+
+	destDir := filepath.Join(dir, "out")
+	err := Unpack(tarball, destDir)
+	require.NoError(t, err)
+
+	orig, err := os.ReadFile(filepath.Join(destDir, "original.pl"))
+	require.NoError(t, err)
+	link, err := os.ReadFile(filepath.Join(destDir, "linked.pl"))
+	require.NoError(t, err)
+	assert.Equal(t, orig, link)
+}
+
 func TestUnpack_HardlinkEscape(t *testing.T) {
 	dir := t.TempDir()
 	tarball := writeTarGz(t, dir, []tarEntry{

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/prolm/prolm/internal/httputil"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -226,7 +227,7 @@ func validateLockURL(rawURL string) error {
 
 	// Allow localhost for tests.
 	host := u.Hostname()
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+	if httputil.IsLocalhostURL(rawURL) {
 		return nil
 	}
 

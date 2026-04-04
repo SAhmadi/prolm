@@ -8,30 +8,6 @@
 
 ## Open Issues
 
-### DRY-003 — Duplicated retry/backoff logic between registry and installer
-
-**Severity:** Low  
-**Phase:** Before 2.1  
-**File:** `internal/installer/fetch.go`, `internal/registry/swi.go`
-
-The exponential backoff + jitter retry logic for HTTP 429 responses is duplicated
-between `doFetchWithRetries()` in `fetch.go` and `doRequestWithRetries()` in `swi.go`.
-The installer variant is simpler (no ETag/304 caching), but the core pattern is the same.
-
-**Fix:** Extract a shared `internal/httputil/` package with a generic
-`DoWithRetries(ctx, client, req) (*http.Response, error)` function.
-
-### DRY-004 — Duplicated `isLocalhostURL` helper
-
-**Severity:** Trivial  
-**Phase:** Before 2.1  
-**File:** `internal/installer/fetch.go`, `internal/installer/installer.go`
-
-The localhost URL check is duplicated between `fetch.go` (for HTTPS bypass in tests)
-and `installer.go` (for SEC-14 URL validation). Both are trivial 3-line functions.
-
-**Fix:** Extract to a shared helper, or export from the registry package.
-
 ### QUALITY-006 — Store file lock does not detect stale locks
 
 **Severity:** Low  
@@ -104,43 +80,17 @@ unpredictable, making retries less efficient.
 section 6 which specifies "Install order is deterministic: topological sort of
 dependency graph, ties broken alphabetically by package name."
 
-### SEC-015 — Hardlink target not verified against actual resolved path
-
-**Severity:** Medium  
-**Phase:** Before 1.15  
-**File:** `internal/installer/unpack.go`
-
-`Unpack()` validates hardlink targets via `safeExtract(destDir, header.Linkname)`
-at line 132, but then constructs the actual link target using
-`filepath.Join(destDir, header.Linkname)` at line 135. If `safeExtract` and the
-`filepath.Join`+`filepath.Clean` at lines 135-136 produce different results
-(e.g., due to platform-specific path handling), the actual hardlink could point
-outside `destDir`. The result of `safeExtract` should be used directly instead of
-recomputing the path.
-
-**Fix:** Use the validated path returned by `safeExtract`:
-```go
-linkTarget, err := safeExtract(destDir, header.Linkname)
-if err != nil {
-    return err
-}
-if err := os.Link(linkTarget, dest); err != nil { ... }
-```
-
 ---
 
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
-| DRY-003 | Low | Open | Before 2.1 |
-| DRY-004 | Trivial | Open | Before 2.1 |
 | QUALITY-006 | Low | Open | Before 2.1 |
 | QUALITY-007 | Trivial | Open | Before 2.1 |
 | QUALITY-008 | Trivial | Open | Before 2.1 |
 | QUALITY-009 | Low | Open | Before 2.1 |
 | QUALITY-010 | Low | Open | Before 2.1 |
-| SEC-015 | Medium | Open | Before 1.15 |
 
 ## Tracking (Fixed)
 
@@ -165,3 +115,6 @@ if err := os.Link(linkTarget, dest); err != nil { ... }
 | QUALITY-005 | Trivial | Fixed | Before merge of PR #5 |
 | DOC-001 | Low | Fixed (swi.go + ROADMAP) | Immediately |
 | DOC-002 | Low | Fixed (swi.go comments) | Immediately |
+| SEC-015 | Medium | Fixed | Before 1.15 |
+| DRY-003 | Low | Fixed (internal/httputil) | Before 2.1 |
+| DRY-004 | Trivial | Fixed (internal/httputil) | Before 2.1 |

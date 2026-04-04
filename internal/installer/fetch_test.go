@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prolm/prolm/internal/httputil"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,17 +18,14 @@ import (
 
 func overrideFetchBackoff(t *testing.T) {
 	t.Helper()
-	origBackoff := fetchInitialBackoff
-	origJitter := fetchJitterMax
-	origRetries := fetchMaxRetries
-	fetchInitialBackoff = 1 * time.Millisecond
-	fetchJitterMax = 1 * time.Millisecond
-	fetchMaxRetries = 3
-	t.Cleanup(func() {
-		fetchInitialBackoff = origBackoff
-		fetchJitterMax = origJitter
-		fetchMaxRetries = origRetries
-	})
+	orig := fetchRetryConfig
+	fetchRetryConfig = httputil.RetryConfig{
+		MaxRetries:     3,
+		InitialBackoff: 1 * time.Millisecond,
+		MaxBackoff:     30 * time.Millisecond,
+		JitterMax:      1 * time.Millisecond,
+	}
+	t.Cleanup(func() { fetchRetryConfig = orig })
 }
 
 func TestFetch_Success(t *testing.T) {

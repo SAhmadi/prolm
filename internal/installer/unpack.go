@@ -128,12 +128,12 @@ func Unpack(tarballPath string, destDir string) error {
 			}
 
 		case tar.TypeLink:
-			// Validate that the hardlink target stays within destDir.
-			if _, err := safeExtract(destDir, header.Linkname); err != nil {
+			// Validate that the hardlink target stays within destDir (SEC-015).
+			// Use the validated path directly — never reconstruct from raw header.
+			linkTarget, err := safeExtract(destDir, header.Linkname)
+			if err != nil {
 				return err
 			}
-			linkTarget := filepath.Join(destDir, header.Linkname)
-			linkTarget = filepath.Clean(linkTarget)
 			if err := os.Link(linkTarget, dest); err != nil {
 				return fmt.Errorf("creating hardlink %s: %w", header.Name, err)
 			}
