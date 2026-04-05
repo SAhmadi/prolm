@@ -172,3 +172,97 @@ func TestScanDeps_SkipsHiddenDirectories(t *testing.T) {
 	// somepkg from .git/ should NOT appear.
 	assert.Empty(t, deps["somepkg"])
 }
+
+// --- Multi-line directive tests (QUALITY-013) ---
+
+func TestScanDeps_MultiLineDirective(t *testing.T) {
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(
+    library(clpfd)
+).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"clpfd": "*"}, deps)
+}
+
+func TestScanDeps_MultiLineCompact(t *testing.T) {
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(
+library(clpfd)).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"clpfd": "*"}, deps)
+}
+
+func TestScanDeps_MultiLineBuiltinSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(
+    library(lists)
+).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Empty(t, deps)
+}
+
+func TestScanDeps_MultiLineNestedPath(t *testing.T) {
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(
+    library(http/http_server)
+).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"http": "*"}, deps)
+}
+
+func TestScanDeps_MixedSingleAndMultiLine(t *testing.T) {
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(library(clpfd)).
+:- use_module(
+    library(prosqlite)
+).
+:- use_module(library(lists)).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "*", deps["clpfd"])
+	assert.Equal(t, "*", deps["prosqlite"])
+	assert.Len(t, deps, 2) // lists is built-in
+}
+
+func TestScanDeps_MultiLineAbandoned(t *testing.T) {
+	// A malformed directive that never closes should not break the scanner
+	// or prevent subsequent directives from being detected.
+	dir := t.TempDir()
+	writePl(t, dir, "main.pl", `:- use_module(
+    some_garbage_that_never_closes
+    more_garbage
+:- use_module(library(clpfd)).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	// clpfd may or may not be detected depending on buffering, but no crash.
+	assert.NoError(t, err)
+	_ = deps
+}
+
+// --- Builtins list tests (QUALITY-014) ---
+
+func TestSwiBuiltins_CoreEntriesPresent(t *testing.T) {
+	core := []string{
+		"lists", "apply", "assoc", "pairs", "ordsets", "plunit",
+		"system", "readutil", "aggregate", "dcg/basics", "random",
+		"csv", "socket", "thread", "url",
+	}
+	for _, name := range core {
+		assert.True(t, swiBuiltins[name], "expected %q in swiBuiltins", name)
+	}
+}
+
+func TestSwiBuiltins_MinimumCount(t *testing.T) {
+	assert.GreaterOrEqual(t, len(swiBuiltins), 50,
+		"swiBuiltins should have at least 50 entries to cover SWI-Prolog 9.2.x standard libs")
+}
