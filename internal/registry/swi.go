@@ -13,27 +13,22 @@ package registry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/prolm/prolm/internal/httputil"
 	"golang.org/x/net/html"
 )
 
-// Default backoff parameters for rate-limit retries (SEC-10).
-// Package-level vars so tests can override them.
-var (
-	maxRetries     = 5
-	initialBackoff = 1 * time.Second
-	maxBackoff     = 30 * time.Second
-	jitterMax      = 500 * time.Millisecond
-)
+// swiRetryConfig holds backoff parameters for rate-limit retries (SEC-10).
+// Package-level var so tests can override it.
+var swiRetryConfig = httputil.DefaultRetryConfig()
 
 // defaultTimeout is the per-request HTTP timeout.
 const defaultTimeout = 30 * time.Second
@@ -82,7 +77,7 @@ func NewSWIRegistry(opts ...SWIOption) (*SWIRegistry, error) {
 	// SEC-4: validate base URL is HTTPS.
 	// isLocalhostURL bypass exists solely for httptest.Server in unit tests,
 	// which always bind to 127.0.0.1. It must never be used with non-test URLs.
-	if !isLocalhostURL(r.baseURL) {
+	if !httputil.IsLocalhostURL(r.baseURL) {
 		if err := ValidateHTTPS(r.baseURL); err != nil {
 			return nil, err
 		}
@@ -127,6 +122,16 @@ func (r *SWIRegistry) Versions(ctx context.Context, name string) ([]PackageVersi
 	if len(versions) == 0 {
 		return nil, &ErrPackageNotFound{Name: name, Registry: "swi-pack-index"}
 	}
+
+	// Populate the in-memory cache so subsequent cachedVersions / DownloadURL
+	// calls for the same package skip the network entirely (BUG-009).
+	r.mu.Lock()
+	if r.versionCache == nil {
+		r.versionCache = make(map[string][]PackageVersion)
+	}
+	r.versionCache[name] = versions
+	r.mu.Unlock()
+
 	return versions, nil
 }
 
@@ -145,7 +150,7 @@ func (r *SWIRegistry) DownloadURL(ctx context.Context, name, version string) (st
 			}
 			// SEC-4: validate download URL is HTTPS.
 			// isLocalhostURL bypass is for httptest-based download URLs in tests only.
-			if !isLocalhostURL(pv.URL) {
+			if !httputil.IsLocalhostURL(pv.URL) {
 				if err := ValidateHTTPS(pv.URL); err != nil {
 					return "", err
 				}
@@ -174,13 +179,7 @@ func (r *SWIRegistry) cachedVersions(ctx context.Context, name string) ([]Packag
 		return nil, err
 	}
 
-	r.mu.Lock()
-	if r.versionCache == nil {
-		r.versionCache = make(map[string][]PackageVersion)
-	}
-	r.versionCache[name] = versions
-	r.mu.Unlock()
-
+	// Versions() already wrote to r.versionCache[name] (QUALITY-007).
 	return versions, nil
 }
 
@@ -244,9 +243,51 @@ func (r *SWIRegistry) fetch(ctx context.Context, path string) (io.ReadCloser, er
 		}
 	}
 
-	result, err := r.doRequestWithRetries(ctx, fullURL, cached)
+	resp, err := httputil.DoWithRetries(ctx, r.client, swiRetryConfig, func() (*http.Request, error) {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		if cached != nil {
+			if cached.ETag != "" {
+				req.Header.Set("If-None-Match", cached.ETag)
+			}
+			if cached.LastModified != "" {
+				req.Header.Set("If-Modified-Since", cached.LastModified)
+			}
+		}
+		return req, nil
+	})
 	if err != nil {
+		var exhausted *httputil.ErrRetriesExhausted
+		if errors.As(err, &exhausted) {
+			return nil, &ErrRateLimited{RetryAfter: exhausted.RetryAfter}
+		}
 		return nil, err
+	}
+
+	// Convert the raw response into a fetchResult.
+	var result *fetchResult
+	switch resp.StatusCode {
+	case http.StatusOK:
+		result = &fetchResult{
+			body:         resp.Body,
+			etag:         resp.Header.Get("ETag"),
+			lastModified: resp.Header.Get("Last-Modified"),
+		}
+	case http.StatusNotModified:
+		resp.Body.Close()
+		result = &fetchResult{}
+	case http.StatusNotFound:
+		resp.Body.Close()
+		return nil, &ErrInvalidResponse{
+			Reason: fmt.Sprintf("HTTP 404 from %s", fullURL),
+		}
+	default:
+		resp.Body.Close()
+		return nil, &ErrInvalidResponse{
+			Reason: fmt.Sprintf("unexpected HTTP status %d from %s", resp.StatusCode, fullURL),
+		}
 	}
 
 	// If body is nil, the server returned 304 — use cached body.
@@ -290,119 +331,6 @@ type fetchResult struct {
 	body         io.ReadCloser
 	etag         string
 	lastModified string
-}
-
-// doRequestWithRetries executes an HTTP GET with rate-limit backoff (SEC-10).
-// Returns a result with nil body on 304 Not Modified.
-func (r *SWIRegistry) doRequestWithRetries(ctx context.Context, rawURL string, cached *cacheEntry) (*fetchResult, error) {
-	backoff := initialBackoff
-
-	for attempt := range maxRetries + 1 {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-		if err != nil {
-			return nil, fmt.Errorf("creating request: %w", err)
-		}
-
-		// Add conditional headers from cache.
-		if cached != nil {
-			if cached.ETag != "" {
-				req.Header.Set("If-None-Match", cached.ETag)
-			}
-			if cached.LastModified != "" {
-				req.Header.Set("If-Modified-Since", cached.LastModified)
-			}
-		}
-
-		resp, err := r.client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("HTTP request failed: %w", err)
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			return &fetchResult{
-				body:         resp.Body,
-				etag:         resp.Header.Get("ETag"),
-				lastModified: resp.Header.Get("Last-Modified"),
-			}, nil
-
-		case http.StatusNotModified:
-			resp.Body.Close()
-			return &fetchResult{}, nil
-
-		case http.StatusTooManyRequests:
-			resp.Body.Close()
-			if attempt == maxRetries {
-				retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
-				return nil, &ErrRateLimited{RetryAfter: retryAfter}
-			}
-
-			// Determine wait duration from Retry-After header or backoff.
-			wait := backoff
-			if ra := parseRetryAfter(resp.Header.Get("Retry-After")); ra > 0 {
-				wait = ra
-			}
-
-			// Add jitter.
-			jitter := time.Duration(rand.Int64N(int64(jitterMax)))
-			wait += jitter
-
-			// Cap at maxBackoff.
-			if wait > maxBackoff {
-				wait = maxBackoff
-			}
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(wait):
-			}
-
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-
-		case http.StatusNotFound:
-			resp.Body.Close()
-			return nil, &ErrInvalidResponse{
-				Reason: fmt.Sprintf("HTTP 404 from %s", rawURL),
-			}
-
-		default:
-			resp.Body.Close()
-			return nil, &ErrInvalidResponse{
-				Reason: fmt.Sprintf("unexpected HTTP status %d from %s", resp.StatusCode, rawURL),
-			}
-		}
-	}
-
-	// Unreachable — the loop handles all exit conditions — but satisfies the compiler.
-	return nil, &ErrRateLimited{}
-}
-
-// parseRetryAfter parses a Retry-After header value (RFC 9110 §10.2.4).
-// Supports both integer seconds and HTTP-date format.
-// Returns 0 if the value is empty, unparseable, or a date in the past.
-func parseRetryAfter(value string) time.Duration {
-	if value == "" {
-		return 0
-	}
-	// Try integer seconds first.
-	if secs, err := strconv.Atoi(value); err == nil {
-		if secs < 0 {
-			return 0
-		}
-		return time.Duration(secs) * time.Second
-	}
-	// Try HTTP-date format (e.g. "Wed, 21 Oct 2025 07:28:00 GMT").
-	if t, err := http.ParseTime(value); err == nil {
-		if delay := time.Until(t); delay > 0 {
-			return delay
-		}
-		return 0
-	}
-	return 0
 }
 
 // --- HTML Parsing ---
@@ -510,9 +438,7 @@ func parseDetailRow(tr *html.Node, name string) (PackageVersion, bool) {
 		cells = append(cells, text)
 
 		// Collect all href links in this cell.
-		for _, href := range findHrefs(td) {
-			links = append(links, href)
-		}
+		links = append(links, findHrefs(td)...)
 	}
 
 	// Skip header rows and rows without enough data.
@@ -669,12 +595,3 @@ func isDownloadURL(href string) bool {
 		strings.HasSuffix(lower, ".zip")
 }
 
-// isLocalhostURL checks if a URL points to localhost (for test servers).
-func isLocalhostURL(rawURL string) bool {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	return host == "127.0.0.1" || host == "::1" || host == "localhost"
-}

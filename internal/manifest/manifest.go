@@ -17,7 +17,7 @@ import (
 const prolfileName = "Prolfile.toml"
 
 // ErrNotFound is returned when Discover cannot find a Prolfile.toml.
-var ErrNotFound = errors.New("Prolfile.toml not found")
+var ErrNotFound = errors.New("prolfile.toml not found")
 
 // VersionTooNewError indicates prolfile_version exceeds what this prolm supports.
 type VersionTooNewError struct {
@@ -149,7 +149,7 @@ func Discover(startDir string) (string, error) {
 
 func checkProlfileVersion(version int) error {
 	if version == 0 {
-		return errors.New("Prolfile.toml is missing [meta].prolfile_version")
+		return errors.New("prolfile.toml is missing [meta].prolfile_version")
 	}
 	if version > prolfile.CurrentProlfileVersion {
 		return &VersionTooNewError{

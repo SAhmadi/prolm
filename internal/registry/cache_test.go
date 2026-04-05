@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prolm/prolm/internal/httputil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -143,14 +144,14 @@ func TestCache_ConcurrentAccess(t *testing.T) {
 // --- ETag integration test with httptest ---
 
 func TestCache_ETagFlow(t *testing.T) {
-	origInitial := initialBackoff
-	origJitter := jitterMax
-	initialBackoff = 1 * time.Millisecond
-	jitterMax = 1 * time.Millisecond
-	t.Cleanup(func() {
-		initialBackoff = origInitial
-		jitterMax = origJitter
-	})
+	orig := swiRetryConfig
+	swiRetryConfig = httputil.RetryConfig{
+		MaxRetries:     5,
+		InitialBackoff: 1 * time.Millisecond,
+		MaxBackoff:     30 * time.Millisecond,
+		JitterMax:      1 * time.Millisecond,
+	}
+	t.Cleanup(func() { swiRetryConfig = orig })
 
 	var requestCount int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

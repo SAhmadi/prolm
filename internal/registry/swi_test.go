@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prolm/prolm/internal/httputil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
@@ -331,14 +332,14 @@ func TestInputValidation_NullByteInName(t *testing.T) {
 
 func TestRateLimit_429ThenSuccess(t *testing.T) {
 	// Override backoff for fast tests.
-	origInitial := initialBackoff
-	origJitter := jitterMax
-	initialBackoff = 1 * time.Millisecond
-	jitterMax = 1 * time.Millisecond
-	t.Cleanup(func() {
-		initialBackoff = origInitial
-		jitterMax = origJitter
-	})
+	orig := swiRetryConfig
+	swiRetryConfig = httputil.RetryConfig{
+		MaxRetries:     5,
+		InitialBackoff: 1 * time.Millisecond,
+		MaxBackoff:     30 * time.Millisecond,
+		JitterMax:      1 * time.Millisecond,
+	}
+	t.Cleanup(func() { swiRetryConfig = orig })
 
 	var attempts atomic.Int32
 	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -358,17 +359,14 @@ func TestRateLimit_429ThenSuccess(t *testing.T) {
 }
 
 func TestRateLimit_429Exhausted(t *testing.T) {
-	origInitial := initialBackoff
-	origMax := maxRetries
-	origJitter := jitterMax
-	initialBackoff = 1 * time.Millisecond
-	maxRetries = 2
-	jitterMax = 1 * time.Millisecond
-	t.Cleanup(func() {
-		initialBackoff = origInitial
-		maxRetries = origMax
-		jitterMax = origJitter
-	})
+	orig := swiRetryConfig
+	swiRetryConfig = httputil.RetryConfig{
+		MaxRetries:     2,
+		InitialBackoff: 1 * time.Millisecond,
+		MaxBackoff:     30 * time.Millisecond,
+		JitterMax:      1 * time.Millisecond,
+	}
+	t.Cleanup(func() { swiRetryConfig = orig })
 
 	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -382,14 +380,14 @@ func TestRateLimit_429Exhausted(t *testing.T) {
 }
 
 func TestRateLimit_ContextCancellation(t *testing.T) {
-	origInitial := initialBackoff
-	origJitter := jitterMax
-	initialBackoff = 5 * time.Second
-	jitterMax = 1 * time.Millisecond
-	t.Cleanup(func() {
-		initialBackoff = origInitial
-		jitterMax = origJitter
-	})
+	orig := swiRetryConfig
+	swiRetryConfig = httputil.RetryConfig{
+		MaxRetries:     5,
+		InitialBackoff: 5 * time.Second,
+		MaxBackoff:     10 * time.Second,
+		JitterMax:      1 * time.Millisecond,
+	}
+	t.Cleanup(func() { swiRetryConfig = orig })
 
 	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -506,21 +504,21 @@ func TestIsDownloadURL(t *testing.T) {
 
 func TestParseRetryAfter(t *testing.T) {
 	// Integer seconds.
-	assert.Equal(t, 5*time.Second, parseRetryAfter("5"))
-	assert.Equal(t, time.Duration(0), parseRetryAfter("0"))
-	assert.Equal(t, time.Duration(0), parseRetryAfter(""))
-	assert.Equal(t, time.Duration(0), parseRetryAfter("not-a-number"))
-	assert.Equal(t, time.Duration(0), parseRetryAfter("-1"))
+	assert.Equal(t, 5*time.Second, httputil.ParseRetryAfter("5"))
+	assert.Equal(t, time.Duration(0), httputil.ParseRetryAfter("0"))
+	assert.Equal(t, time.Duration(0), httputil.ParseRetryAfter(""))
+	assert.Equal(t, time.Duration(0), httputil.ParseRetryAfter("not-a-number"))
+	assert.Equal(t, time.Duration(0), httputil.ParseRetryAfter("-1"))
 
 	// HTTP-date in the future (BUG-005).
 	future := time.Now().Add(30 * time.Second).UTC().Format(http.TimeFormat)
-	d := parseRetryAfter(future)
+	d := httputil.ParseRetryAfter(future)
 	assert.Greater(t, d, 20*time.Second, "expected ~30s delay for future HTTP-date")
 	assert.Less(t, d, 35*time.Second)
 
 	// HTTP-date in the past returns 0.
 	past := time.Now().Add(-10 * time.Second).UTC().Format(http.TimeFormat)
-	assert.Equal(t, time.Duration(0), parseRetryAfter(past))
+	assert.Equal(t, time.Duration(0), httputil.ParseRetryAfter(past))
 }
 
 // --- BUG-008: DownloadURL caches Versions results ---
@@ -544,6 +542,31 @@ func TestDownloadURL_CachesVersions(t *testing.T) {
 	assert.Contains(t, url2, "1.4.2")
 
 	// Only one HTTP request for the detail page.
+	assert.Equal(t, int32(1), fetchCount.Load())
+}
+
+// --- BUG-009: Versions() populates the in-memory cache ---
+
+func TestVersions_PopulatesCache(t *testing.T) {
+	var fetchCount atomic.Int32
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		fetchCount.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(packDetailHTML))
+	})
+
+	// Direct Versions() call — fetches from server.
+	versions, err := reg.Versions(context.Background(), "clpfd")
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
+	assert.Equal(t, int32(1), fetchCount.Load())
+
+	// DownloadURL for the same package must use the cache, not re-fetch.
+	url1, err := reg.DownloadURL(context.Background(), "clpfd", "1.4.3")
+	require.NoError(t, err)
+	assert.Contains(t, url1, "1.4.3")
+
+	// Still only one HTTP request.
 	assert.Equal(t, int32(1), fetchCount.Load())
 }
 
