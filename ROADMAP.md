@@ -240,16 +240,16 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.3, 1.8*
 
-- [ ] `scanner.go` — `ScanDeps(dir) (map[string]string, error)`:
+- [x] `scanner.go` — `ScanDeps(dir) (map[string]string, error)`:
   - Walk `.pl` files, find `:- use_module(library(X))` patterns
   - Return map of detected dep names to `"*"`
-- [ ] `scaffold.go` — `InitProject(dir, scan, yes) error`:
+- [x] `scaffold.go` — `InitProject(dir, scan, yes) error`:
   - Error if `Prolfile.toml` already exists
   - If `--scan`: run `ScanDeps`, pre-populate `[dependencies]`
   - If `--yes`: use directory name as project name + defaults
   - Otherwise: prompt interactively
   - Write `Prolfile.toml` and empty `Prolfile.lock`
-- [ ] `cmd/init.go` — Cobra command with `--yes` and `--scan` flags
+- [x] `cmd/init.go` — Cobra command with `--yes` and `--scan` flags
 
 **Testing:** Scanner against known `.pl` files. Init in empty dir. Init with existing Prolfile.toml errors. `--yes` mode.
 

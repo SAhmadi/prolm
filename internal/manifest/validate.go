@@ -68,6 +68,26 @@ func ValidateRuntime(name string) error {
 	return nil
 }
 
+// ValidateVersion checks whether version is valid semver.
+// Returns nil if valid, or a *ValidationError describing the problem.
+func ValidateVersion(version string) error {
+	errs := validateVersion(nil, version)
+	if len(errs) > 0 {
+		return &ValidationError{Errors: errs}
+	}
+	return nil
+}
+
+// ValidateEntry checks whether entry is a valid entry point path.
+// Returns nil if valid, or a *ValidationError describing the problem.
+func ValidateEntry(entry string) error {
+	errs := validateEntry(nil, entry)
+	if len(errs) > 0 {
+		return &ValidationError{Errors: errs}
+	}
+	return nil
+}
+
 // Validate checks all fields of pf for correctness. It returns a
 // *ValidationError containing every problem found, or nil if valid.
 func Validate(pf *prolfile.ProlFile) error {

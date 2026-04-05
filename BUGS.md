@@ -21,8 +21,6 @@ or an alternative using `os/exec.Command` + `os.Exit` on Windows.
 **Fix:** When Windows support is added in Phase 4, split `Exec()` into
 platform-specific files with build tags.
 
----
-
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
