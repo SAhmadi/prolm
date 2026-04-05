@@ -1,6 +1,7 @@
 package scaffold
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -195,24 +196,17 @@ func TestNewProject_InvalidRuntime(t *testing.T) {
 func TestNewProject_CleanupOnError(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	// Create a file (not directory) at the src path to cause MkdirAll to fail
-	// after the project dir is created.
-	require.NoError(t, os.Mkdir("fail-project", 0755))
-	require.NoError(t, os.WriteFile("fail-project/src", []byte("blocker"), 0644))
+	// Inject a failure after directory creation so the cleanup defer fires.
+	testAfterCreate = func(dir string) error {
+		return fmt.Errorf("injected failure for cleanup test")
+	}
+	defer func() { testAfterCreate = nil }()
 
-	// Remove the project dir so NewProject can try to recreate it.
-	require.NoError(t, os.RemoveAll("fail-project"))
+	err := NewProject("cleanup-test", "app", "swi")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "injected failure")
 
-	// Now create a scenario where directory creation succeeds but a later step fails.
-	// We create the project dir with a read-only "src" file blocking src/main.pl write.
-	require.NoError(t, os.MkdirAll("blocker/src", 0755))
-	require.NoError(t, os.WriteFile("blocker/src/main.pl", nil, 0000))
-	require.NoError(t, os.Chmod("blocker/src", 0555))
-
-	// NewProject("blocker", ...) will fail because the directory already exists.
-	err := NewProject("blocker", "app", "swi")
-	assert.Error(t, err)
-
-	// Restore permissions for cleanup.
-	os.Chmod("blocker/src", 0755)
+	// The cleanup defer should have removed the project directory.
+	_, statErr := os.Stat("cleanup-test")
+	assert.True(t, os.IsNotExist(statErr), "project directory should be removed after error")
 }

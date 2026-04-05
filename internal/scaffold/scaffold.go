@@ -31,6 +31,11 @@ var validRuntimes = map[string]bool{
 	"scryer": true,
 }
 
+// testAfterCreate is a hook for testing cleanup behavior.
+// It is called (when non-nil) immediately after the project directory is
+// created and created=true is set. Only set in tests (same-package access).
+var testAfterCreate func(projectDir string) error
+
 // templateData holds values passed to all templates.
 type templateData struct {
 	Name    string
@@ -56,10 +61,14 @@ func NewProject(name, tmpl, runtime string) error {
 		return err
 	}
 	if !validTemplates[tmpl] {
-		return fmt.Errorf("unknown template %q; available: app", tmpl)
+		ui.Error("unknown template %q; available: app", tmpl)
+		ui.Hint("Use --template app (the only template available in this release)")
+		return fmt.Errorf("unknown template %q", tmpl)
 	}
 	if !validRuntimes[runtime] {
-		return fmt.Errorf("unknown runtime %q; must be one of: swi, gnu, scryer", runtime)
+		ui.Error("unknown runtime %q; must be one of: swi, gnu, scryer", runtime)
+		ui.Hint("Use --runtime swi, --runtime gnu, or --runtime scryer")
+		return fmt.Errorf("unknown runtime %q", runtime)
 	}
 
 	projectDir := filepath.Join(".", name)
@@ -81,6 +90,12 @@ func NewProject(name, tmpl, runtime string) error {
 		return fmt.Errorf("creating project directory: %w", err)
 	}
 	created = true
+
+	if testAfterCreate != nil {
+		if err := testAfterCreate(projectDir); err != nil {
+			return err
+		}
+	}
 
 	if err := os.MkdirAll(filepath.Join(projectDir, "tests"), 0755); err != nil {
 		return fmt.Errorf("creating tests directory: %w", err)

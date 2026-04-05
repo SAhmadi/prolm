@@ -20,14 +20,12 @@ and a git repository.`,
 		name := args[0]
 		tmpl, _ := cmd.Flags().GetString("template")
 		runtime, _ := cmd.Flags().GetString("runtime")
-		if runtime == "" {
-			runtime = "swi"
-		}
 		return scaffold.NewProject(name, tmpl, runtime)
 	},
 }
 
 func init() {
 	newCmd.Flags().String("template", "app", "project template: app | library | cli")
+	newCmd.Flags().String("runtime", "swi", "target runtime: swi | gnu | scryer")
 	rootCmd.AddCommand(newCmd)
 }
