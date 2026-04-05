@@ -29,7 +29,7 @@ func TestDetectFactory(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rt, err := Detect(tt.input)
+			rt, err := NewRuntime(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				var target *ErrUnsupportedRuntime
@@ -258,6 +258,19 @@ func TestSWIRuntime_BuildRunArgs(t *testing.T) {
 				"-t", "halt",
 			},
 		},
+		{
+			name:  "single quote in entry and dep path",
+			entry: "/home/o'brien/main",
+			deps:  []string{"/store/o'clock/1.0"},
+			flags: nil,
+			goal:  "main",
+			want: []string{
+				"-g", "use_module('/store/o''clock/1.0')",
+				"-g", "use_module('/home/o''brien/main')",
+				"-g", "main",
+				"-t", "halt",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -322,6 +335,19 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 				"-t", "halt",
 			},
 		},
+		{
+			name:      "single quote in test file and dep",
+			testFiles: []string{"/home/o'brien/main_test"},
+			deps:      []string{"/store/o'clock/1.0"},
+			flags:     nil,
+			want: []string{
+				"-g", "use_module(library(plunit))",
+				"-g", "use_module('/store/o''clock/1.0')",
+				"-g", "use_module('/home/o''brien/main_test')",
+				"-g", "run_tests",
+				"-t", "halt",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -370,6 +396,16 @@ func TestSWIRuntime_BuildCheckArgs(t *testing.T) {
 			files: nil,
 			deps:  nil,
 			want:  []string{"-t", "halt"},
+		},
+		{
+			name:  "single quote in file and dep path",
+			files: []string{"/home/o'brien/src/main.pl"},
+			deps:  []string{"/store/o'clock/1.0"},
+			want: []string{
+				"-g", "use_module('/store/o''clock/1.0')",
+				"-g", "load_files('/home/o''brien/src/main.pl')",
+				"-t", "halt",
+			},
 		},
 	}
 

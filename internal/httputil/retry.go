@@ -29,12 +29,13 @@ func DefaultRetryConfig() RetryConfig {
 
 // ErrRetriesExhausted is returned after exhausting all retry attempts on 429 responses.
 type ErrRetriesExhausted struct {
+	MaxRetries int
 	RetryAfter time.Duration
 }
 
 func (e *ErrRetriesExhausted) Error() string {
 	if e.RetryAfter > 0 {
-		return fmt.Sprintf("rate limited; all %d retry attempts exhausted; retry after %s", 0, e.RetryAfter)
+		return fmt.Sprintf("rate limited; all %d retry attempts exhausted; retry after %s", e.MaxRetries, e.RetryAfter)
 	}
 	return "rate limited; all retry attempts exhausted"
 }
@@ -72,7 +73,7 @@ func DoWithRetries(ctx context.Context, client *http.Client, cfg RetryConfig, ma
 
 		if attempt == cfg.MaxRetries {
 			retryAfter := ParseRetryAfter(resp.Header.Get("Retry-After"))
-			return nil, &ErrRetriesExhausted{RetryAfter: retryAfter}
+			return nil, &ErrRetriesExhausted{MaxRetries: cfg.MaxRetries, RetryAfter: retryAfter}
 		}
 
 		wait := backoff
@@ -100,7 +101,7 @@ func DoWithRetries(ctx context.Context, client *http.Client, cfg RetryConfig, ma
 	}
 
 	// Unreachable — the loop handles all exit conditions — but satisfies the compiler.
-	return nil, &ErrRetriesExhausted{}
+	return nil, &ErrRetriesExhausted{MaxRetries: cfg.MaxRetries}
 }
 
 // ParseRetryAfter parses a Retry-After header value (RFC 9110 section 10.2.4).

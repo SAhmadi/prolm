@@ -8,23 +8,6 @@
 
 ## Open Issues
 
-### QUALITY-011 — Hardcoded 0 in ErrRetriesExhausted error message (Trivial)
-
-**File:** `internal/httputil/retry.go:37`
-**Found:** PR #6 review
-
-```go
-return fmt.Sprintf("rate limited; all %d retry attempts exhausted; retry after %s", 0, e.RetryAfter)
-```
-
-The `%d` always prints `0` instead of the actual retry count. `ErrRetriesExhausted`
-does not store `MaxRetries`.
-
-**Fix:** Add `MaxRetries int` field to `ErrRetriesExhausted` and set it in
-`DoWithRetries()` at the point where the error is constructed (line 75).
-
----
-
 ### QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec (Low)
 
 **File:** `internal/runtime/swi.go:9,202`
@@ -40,46 +23,11 @@ platform-specific files with build tags.
 
 ---
 
-### QUALITY-013 — BuildRunArgs/BuildTestArgs do not escape single quotes in paths (Low)
-
-**File:** `internal/runtime/swi.go:137-140,164-165,185`
-**Found:** Phase 1.7 implementation
-
-The `fmt.Sprintf("use_module('%s')", dep)` pattern wraps paths in Prolog
-single quotes but does not escape single quotes within the path itself.
-A dependency installed at a path containing `'` (e.g. `/home/o'brien/...`)
-would produce malformed Prolog atoms.
-
-**Fix:** Escape single quotes in paths before interpolation (replace `'` with
-`''` per Prolog atom quoting rules), or use absolute paths that are validated
-to not contain single quotes.
-
----
-
-### QUALITY-014 — Package-level Detect() shadows Runtime.Detect() method (Trivial)
-
-**File:** `internal/runtime/runtime.go:41`
-**Found:** PR #7 review
-
-The package-level factory function `Detect(name string) (Runtime, error)` shares
-the same name as the `Runtime.Detect() (*RuntimeInfo, error)` interface method.
-At call sites this creates confusing patterns like `rt, _ := runtime.Detect("swi")`
-followed by `info, _ := rt.Detect()`. The factory does not actually detect anything;
-it only instantiates the correct runtime type.
-
-**Fix:** Rename the factory to `NewRuntime(name)` or `ForName(name)` to
-distinguish it from the interface method that performs actual binary detection.
-
----
-
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
-| QUALITY-011 | Trivial | Open | Before 2.2 |
 | QUALITY-012 | Low | Open | Before 4.7 |
-| QUALITY-013 | Low | Open | Before 1.15 |
-| QUALITY-014 | Trivial | Open | Before 2.5 |
 
 ## Tracking (Fixed)
 
@@ -115,3 +63,6 @@ distinguish it from the interface method that performs actual binary detection.
 | BUG-010 | Medium | Fixed (atomic rename in store.go) | Before 2.2 |
 | SEC-016 | Low | Fixed (EvalSymlinks check in unpack.go) | Before 2.2 |
 | BUG-014 | Low | Fixed (runtime param in CheckMinVersion) | Before 2.5 |
+| QUALITY-011 | Trivial | Fixed (MaxRetries field in ErrRetriesExhausted) | Before 2.2 |
+| QUALITY-013 | Low | Fixed (escapePrologAtom helper in swi.go) | Before 1.15 |
+| QUALITY-014 | Trivial | Fixed (factory renamed to NewRuntime) | Before 2.5 |

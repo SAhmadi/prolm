@@ -36,9 +36,9 @@ type Runtime interface {
 	Exec(args []string) error
 }
 
-// Detect is the factory function that returns a Runtime for the given name.
+// NewRuntime is the factory function that returns a Runtime for the given name.
 // An empty name defaults to "swi". Phase 1 only supports "swi".
-func Detect(name string) (Runtime, error) {
+func NewRuntime(name string) (Runtime, error) {
 	if name == "" {
 		name = "swi"
 	}

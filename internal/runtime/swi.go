@@ -125,6 +125,12 @@ func (s *SWIRuntime) parseVersion(path string) (string, error) {
 	return matches[1], nil
 }
 
+// escapePrologAtom escapes a string for use inside a single-quoted Prolog atom
+// by replacing every single-quote with two single-quotes (ISO 6.3.3.3).
+func escapePrologAtom(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
 // BuildRunArgs assembles swipl arguments for prolm run.
 //
 // Result: [flags...] [-g "use_module('dep')" ...] -g "use_module('entry')" -g "goal" -t halt
@@ -134,10 +140,10 @@ func (s *SWIRuntime) BuildRunArgs(entry string, deps []string, flags []string, g
 	args = append(args, flags...)
 
 	for _, dep := range deps {
-		args = append(args, "-g", fmt.Sprintf("use_module('%s')", dep))
+		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(dep)))
 	}
 
-	args = append(args, "-g", fmt.Sprintf("use_module('%s')", entry))
+	args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(entry)))
 	args = append(args, "-g", goal)
 	args = append(args, "-t", "halt")
 
@@ -158,11 +164,11 @@ func (s *SWIRuntime) BuildTestArgs(testFiles []string, deps []string, flags []st
 	args = append(args, "-g", "use_module(library(plunit))")
 
 	for _, dep := range deps {
-		args = append(args, "-g", fmt.Sprintf("use_module('%s')", dep))
+		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(dep)))
 	}
 
 	for _, tf := range testFiles {
-		args = append(args, "-g", fmt.Sprintf("use_module('%s')", tf))
+		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(tf)))
 	}
 
 	args = append(args, "-g", "run_tests")
@@ -178,11 +184,11 @@ func (s *SWIRuntime) BuildCheckArgs(files []string, deps []string) []string {
 	var args []string
 
 	for _, dep := range deps {
-		args = append(args, "-g", fmt.Sprintf("use_module('%s')", dep))
+		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(dep)))
 	}
 
 	for _, f := range files {
-		args = append(args, "-g", fmt.Sprintf("load_files('%s')", f))
+		args = append(args, "-g", fmt.Sprintf("load_files('%s')", escapePrologAtom(f)))
 	}
 
 	args = append(args, "-t", "halt")
