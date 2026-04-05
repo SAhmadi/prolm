@@ -192,16 +192,16 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.1*
 
-- [ ] `runtime.go` — define `Runtime` interface:
+- [x] `runtime.go` — define `Runtime` interface:
   - `Name() string`
   - `Detect() (*RuntimeInfo, error)`
   - `BuildRunArgs(entry, deps, flags, goal) []string`
   - `BuildTestArgs(testFiles, deps, flags) []string`
   - `BuildCheckArgs(files, deps) []string`
   - `Exec(args) error`
-- [ ] `RuntimeInfo` struct: `Path string`, `Version string`
-- [ ] `Detect(name) (Runtime, error)` — factory; Phase 1 supports only `swi`
-- [ ] `swi.go` — `SWIRuntime`:
+- [x] `RuntimeInfo` struct: `Path string`, `Version string`
+- [x] `Detect(name) (Runtime, error)` — factory; Phase 1 supports only `swi`
+- [x] `swi.go` — `SWIRuntime`:
   - `Detect()`: search PATH + common locations (`/usr/local/bin`, `/opt/homebrew/bin`, snap)
   - Run `swipl --version`, parse version
   - If not found: clear error with install URL (per 8.27)

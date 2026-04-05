@@ -8,7 +8,18 @@
 
 ## Open Issues
 
-*No open issues.*
+### QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec (Low)
+
+**File:** `internal/runtime/swi.go:9,202`
+**Found:** Phase 1.7 implementation
+
+`SWIRuntime.Exec()` uses `syscall.Exec` which is not available on Windows.
+Phase 1 targets Linux and macOS only, so this is not blocking, but Phase 4
+(Windows support) will need a build-tag split (`exec_unix.go` / `exec_windows.go`)
+or an alternative using `os/exec.Command` + `os.Exit` on Windows.
+
+**Fix:** When Windows support is added in Phase 4, split `Exec()` into
+platform-specific files with build tags.
 
 ---
 
@@ -16,6 +27,7 @@
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
+| QUALITY-012 | Low | Open | Before 4.7 |
 
 ## Tracking (Fixed)
 
@@ -48,3 +60,9 @@
 | QUALITY-008 | Trivial | Fixed (EqualFold → == in verify.go) | Before 2.1 |
 | QUALITY-009 | Low | Fixed (simplified installOne fast path) | Before 2.1 |
 | QUALITY-010 | Low | Fixed (sort deps before iteration in Install) | Before 2.1 |
+| BUG-010 | Medium | Fixed (atomic rename in store.go) | Before 2.2 |
+| SEC-016 | Low | Fixed (EvalSymlinks check in unpack.go) | Before 2.2 |
+| BUG-014 | Low | Fixed (runtime param in CheckMinVersion) | Before 2.5 |
+| QUALITY-011 | Trivial | Fixed (MaxRetries field in ErrRetriesExhausted) | Before 2.2 |
+| QUALITY-013 | Low | Fixed (escapePrologAtom helper in swi.go) | Before 1.15 |
+| QUALITY-014 | Trivial | Fixed (factory renamed to NewRuntime) | Before 2.5 |
