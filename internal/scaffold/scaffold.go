@@ -223,7 +223,7 @@ func InitProject(dir string, scan, yes bool, stdin io.Reader) error {
 	if _, err := os.Stat(prolfilePath); err == nil {
 		ui.Error("Prolfile.toml already exists in %s", absDir)
 		ui.Hint("Use `prolm install` to install dependencies from the existing Prolfile.toml")
-		return fmt.Errorf("Prolfile.toml already exists")
+		return fmt.Errorf("prolfile.toml already exists")
 	}
 
 	// Derive defaults from the directory name.
