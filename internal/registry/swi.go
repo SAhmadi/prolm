@@ -438,9 +438,7 @@ func parseDetailRow(tr *html.Node, name string) (PackageVersion, bool) {
 		cells = append(cells, text)
 
 		// Collect all href links in this cell.
-		for _, href := range findHrefs(td) {
-			links = append(links, href)
-		}
+		links = append(links, findHrefs(td)...)
 	}
 
 	// Skip header rows and rows without enough data.

@@ -148,7 +148,7 @@ func containsConflictMarkers(data []byte) bool {
 
 func checkLockVersion(version int) error {
 	if version == 0 {
-		return fmt.Errorf("Prolfile.lock is missing [meta].lock_version")
+		return fmt.Errorf("prolfile.lock is missing [meta].lock_version")
 	}
 	if version > prolfile.CurrentLockVersion {
 		return &LockVersionTooNewError{
