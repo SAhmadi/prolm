@@ -385,3 +385,32 @@ func TestValidationError_MultipleMessages(t *testing.T) {
 	assert.Contains(t, msg, "a")
 	assert.Contains(t, msg, "b")
 }
+
+func TestValidateVersion_Valid(t *testing.T) {
+	for _, v := range []string{"0.1.0", "1.0.0", "1.2.3-beta.1", "v2.0.0"} {
+		assert.NoError(t, ValidateVersion(v), "version %q should be valid", v)
+	}
+}
+
+func TestValidateVersion_Invalid(t *testing.T) {
+	for _, v := range []string{"", "not-a-version", "abc"} {
+		assert.Error(t, ValidateVersion(v), "version %q should be invalid", v)
+	}
+}
+
+func TestValidateEntry_Valid(t *testing.T) {
+	for _, e := range []string{"src/main.pl", "main.pl", "lib/app.pl"} {
+		assert.NoError(t, ValidateEntry(e), "entry %q should be valid", e)
+	}
+}
+
+func TestValidateEntry_Invalid(t *testing.T) {
+	for _, e := range []string{"/etc/passwd", "../../evil.pl", "main.txt", "src/app.py"} {
+		assert.Error(t, ValidateEntry(e), "entry %q should be invalid", e)
+	}
+}
+
+func TestValidateEntry_Empty(t *testing.T) {
+	// Empty entry is optional, so it should be valid.
+	assert.NoError(t, ValidateEntry(""))
+}

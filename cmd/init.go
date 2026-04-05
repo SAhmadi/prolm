@@ -27,7 +27,7 @@ this command does not create source files or directories.`,
 			return err
 		}
 
-		return scaffold.InitProject(dir, scan, yes)
+		return scaffold.InitProject(dir, scan, yes, os.Stdin)
 	},
 }
 

@@ -154,3 +154,21 @@ func TestScanDeps_BuiltinDcg(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, deps)
 }
+
+func TestScanDeps_SkipsHiddenDirectories(t *testing.T) {
+	dir := t.TempDir()
+	// Place a .pl file in a hidden directory — it should be ignored.
+	hiddenDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hiddenDir, 0755))
+	writePl(t, hiddenDir, "pre-commit.pl", `:- use_module(library(somepkg)).
+`)
+	// Place a valid .pl file in the visible tree.
+	writePl(t, dir, "main.pl", `:- use_module(library(clpfd)).
+`)
+	deps, err := ScanDeps(dir)
+	require.NoError(t, err)
+	assert.Len(t, deps, 1)
+	assert.Equal(t, "*", deps["clpfd"])
+	// somepkg from .git/ should NOT appear.
+	assert.Empty(t, deps["somepkg"])
+}

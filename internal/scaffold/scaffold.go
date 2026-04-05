@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/prolm/prolm/internal/atomicfile"
 	"github.com/prolm/prolm/internal/manifest"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -123,7 +124,7 @@ func NewProject(name, tmpl, runtime string) error {
 	}
 
 	// Create empty Prolfile.lock.
-	if err := os.WriteFile(filepath.Join(projectDir, "Prolfile.lock"), nil, 0644); err != nil {
+	if err := atomicfile.Write(filepath.Join(projectDir, "Prolfile.lock"), nil, 0644); err != nil {
 		return fmt.Errorf("creating Prolfile.lock: %w", err)
 	}
 
@@ -212,7 +213,7 @@ func sanitizeDirName(name string) string {
 // InitProject initialises a prolm project in an existing directory by
 // creating Prolfile.toml and an empty Prolfile.lock. Unlike NewProject,
 // it does not create source files, directories, or run git init.
-func InitProject(dir string, scan, yes bool) error {
+func InitProject(dir string, scan, yes bool, stdin io.Reader) error {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return fmt.Errorf("resolving directory: %w", err)
@@ -246,7 +247,7 @@ func InitProject(dir string, scan, yes bool) error {
 		runtime = defaultRuntime
 	} else {
 		// Interactive: prompt for each value.
-		p := newPrompter()
+		p := newPrompter(stdin)
 
 		name = p.ask("Project name", defaultName)
 		if err := manifest.ValidateName(name); err != nil {
@@ -259,8 +260,22 @@ func InitProject(dir string, scan, yes bool) error {
 		}
 
 		version = p.ask("Version", defaultVersion)
+		if err := manifest.ValidateVersion(version); err != nil {
+			ui.Error("invalid version %q: %s", version, err)
+			version = p.ask("Version", defaultVersion)
+			if err := manifest.ValidateVersion(version); err != nil {
+				return fmt.Errorf("invalid version %q: %w", version, err)
+			}
+		}
 
 		entry = p.ask("Entry point", defaultEntry)
+		if err := manifest.ValidateEntry(entry); err != nil {
+			ui.Error("invalid entry %q: %s", entry, err)
+			entry = p.ask("Entry point", defaultEntry)
+			if err := manifest.ValidateEntry(entry); err != nil {
+				return fmt.Errorf("invalid entry %q: %w", entry, err)
+			}
+		}
 
 		runtime = p.ask("Runtime (swi, gnu, scryer)", defaultRuntime)
 		if err := manifest.ValidateRuntime(runtime); err != nil {
@@ -302,7 +317,7 @@ func InitProject(dir string, scan, yes bool) error {
 
 	// Create empty Prolfile.lock.
 	lockPath := filepath.Join(absDir, "Prolfile.lock")
-	if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+	if err := atomicfile.Write(lockPath, nil, 0644); err != nil {
 		return fmt.Errorf("creating Prolfile.lock: %w", err)
 	}
 

@@ -61,80 +61,6 @@ built-in names.
 (requires runtime to be installed). Alternatively, maintain a versioned
 built-in list per SWI-Prolog release. Low priority.
 
-### BUG-015 — `InitProject` interactive mode does not validate version or entry inputs (Medium)
-
-**File:** `internal/scaffold/scaffold.go:261-263`
-**Found:** PR #9 review
-
-In interactive mode, `InitProject` validates `name` (via `manifest.ValidateName`) and
-`runtime` (via `manifest.ValidateRuntime`), but accepts `version` and `entry` verbatim
-from user input. Since `manifest.Save()` does not call `Validate()`, invalid values
-(e.g. `"not-a-version"` for version, `"/etc/passwd"` or `"../../evil.pl"` for entry)
-are written to Prolfile.toml. Subsequent `manifest.Load()` calls will fail with
-confusing validation errors.
-
-**Fix:** Either export `ValidateVersion`/`ValidateEntry` from the manifest package
-(matching the pattern of `ValidateName`/`ValidateRuntime`) and call them in the
-interactive prompts, or call `manifest.Validate(pf)` on the assembled ProlFile
-before passing it to `manifest.Save()`.
-
----
-
-### QUALITY-015 — `ScanDeps` does not check `bufio.Scanner` error after scan loop (Low)
-
-**File:** `internal/scaffold/scanner.go:82-109`
-**Found:** PR #9 review
-
-After the `for scanner.Scan()` loop in `ScanDeps`, `scanner.Err()` is never checked.
-If the file read encounters an I/O error mid-scan, partial results are silently used
-without any indication of the truncated read.
-
-**Fix:** Add `if err := scanner.Err(); err != nil { ... }` after the scan loop.
-Since the scanner is best-effort, logging a warning is sufficient.
-
----
-
-### QUALITY-016 — `InitProject` writes Prolfile.lock non-atomically (Low)
-
-**File:** `internal/scaffold/scaffold.go:304`
-**Found:** PR #9 review
-
-Prolfile.toml is correctly written via `manifest.Save()` which uses `atomicfile.Write`
-(SEC-8 compliant), but Prolfile.lock is written with plain `os.WriteFile`. While an
-empty lock is unlikely to cause corruption, this is inconsistent with the project's
-atomic write policy.
-
-**Fix:** Use `atomicfile.Write` for Prolfile.lock as well.
-
----
-
-### QUALITY-017 — `ScanDeps` walks hidden directories (`.git`, etc.) (Low)
-
-**File:** `internal/scaffold/scanner.go:64-73`
-**Found:** PR #9 review
-
-`ScanDeps` does not skip hidden directories (`.git`, `.hg`, `node_modules`, etc.)
-when walking the file tree. For large repositories, walking `.git/` is wasteful and
-could produce false positives from vendored or checked-in `.pl` files.
-
-**Fix:** Add early `return filepath.SkipDir` for directories whose name starts with `.`.
-
----
-
-### QUALITY-018 — `Stdin` package-level mutable variable in prompt.go (Low)
-
-**File:** `internal/scaffold/prompt.go:15`
-**Found:** PR #9 review
-
-The `Stdin` variable is a shared mutable package-level global used for test injection.
-Tests properly save/restore it, but parallel test execution could race on it.
-
-**Fix:** Consider passing an `io.Reader` parameter to `InitProject` (or a config struct)
-instead of using a package-level variable. Low priority since current tests are not
-parallel on this variable.
-
----
-
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
@@ -142,8 +68,3 @@ parallel on this variable.
 | QUALITY-012 | Low | Open | Before 4.7 |
 | QUALITY-013 | Low | Open | Phase 2+ |
 | QUALITY-014 | Low | Open | Phase 2+ |
-| BUG-015 | Medium | Open | PR #9 |
-| QUALITY-015 | Low | Open | PR #9 |
-| QUALITY-016 | Low | Open | PR #9 |
-| QUALITY-017 | Low | Open | PR #9 |
-| QUALITY-018 | Low | Open | PR #9 |

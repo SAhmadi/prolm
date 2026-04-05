@@ -4,15 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/prolm/prolm/internal/ui"
 )
-
-// Stdin is the reader used for interactive prompts.
-// Tests replace this with a *strings.Reader or *bytes.Buffer.
-var Stdin io.Reader = os.Stdin
 
 // prompter wraps a bufio.Scanner to read multiple prompted values from a
 // single reader without the buffering-ahead problem of creating a new
@@ -21,8 +16,8 @@ type prompter struct {
 	scanner *bufio.Scanner
 }
 
-func newPrompter() *prompter {
-	return &prompter{scanner: bufio.NewScanner(Stdin)}
+func newPrompter(r io.Reader) *prompter {
+	return &prompter{scanner: bufio.NewScanner(r)}
 }
 
 // ask prints a prompt and reads one line. If the user presses Enter

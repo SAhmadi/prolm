@@ -45,7 +45,7 @@ func TestInitProject_Yes_EmptyDir(t *testing.T) {
 	projectDir := filepath.Join(dir, "my-app")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	_, err = os.Stat(filepath.Join(projectDir, "Prolfile.toml"))
@@ -60,7 +60,7 @@ func TestInitProject_Yes_ProlfileContent(t *testing.T) {
 	projectDir := filepath.Join(dir, "test-project")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -79,7 +79,7 @@ func TestInitProject_Yes_NameSanitization(t *testing.T) {
 	projectDir := filepath.Join(dir, "My Cool App")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -93,7 +93,7 @@ func TestInitProject_Yes_InvalidDirName(t *testing.T) {
 	projectDir := filepath.Join(dir, "123invalid")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid project name")
 }
@@ -104,7 +104,7 @@ func TestInitProject_ErrorIfProlfileExists(t *testing.T) {
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "Prolfile.toml"), []byte("[package]\n"), 0644))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -118,7 +118,7 @@ func TestInitProject_ScanFindsDeps(t *testing.T) {
 main :- true.
 `)
 
-	err := InitProject(projectDir, true, true)
+	err := InitProject(projectDir, true, true, nil)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -135,7 +135,7 @@ func TestInitProject_ScanFalse(t *testing.T) {
 	writePl(t, projectDir, "src/main.pl", `:- use_module(library(clpfd)).
 `)
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -149,7 +149,7 @@ func TestInitProject_EmptyLock(t *testing.T) {
 	projectDir := filepath.Join(dir, "lock-test")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(projectDir, "Prolfile.lock"))
@@ -162,18 +162,12 @@ func TestInitProject_Interactive(t *testing.T) {
 	projectDir := filepath.Join(dir, "interactive")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	// Provide custom values via stdin.
-	oldStdin := Stdin
 	oldOut := ui.Out
-	defer func() {
-		Stdin = oldStdin
-		ui.Out = oldOut
-	}()
-
-	Stdin = strings.NewReader("custom-name\n0.2.0\nsrc/app.pl\nscryer\n")
+	defer func() { ui.Out = oldOut }()
 	ui.Out = &bytes.Buffer{}
 
-	err := InitProject(projectDir, false, false)
+	input := strings.NewReader("custom-name\n0.2.0\nsrc/app.pl\nscryer\n")
+	err := InitProject(projectDir, false, false, input)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -189,18 +183,12 @@ func TestInitProject_Interactive_Defaults(t *testing.T) {
 	projectDir := filepath.Join(dir, "defaults-test")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	// Empty input = accept all defaults.
-	oldStdin := Stdin
 	oldOut := ui.Out
-	defer func() {
-		Stdin = oldStdin
-		ui.Out = oldOut
-	}()
-
-	Stdin = strings.NewReader("\n\n\n\n")
+	defer func() { ui.Out = oldOut }()
 	ui.Out = &bytes.Buffer{}
 
-	err := InitProject(projectDir, false, false)
+	input := strings.NewReader("\n\n\n\n")
+	err := InitProject(projectDir, false, false, input)
 	require.NoError(t, err)
 
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
@@ -211,12 +199,50 @@ func TestInitProject_Interactive_Defaults(t *testing.T) {
 	assert.Equal(t, "swi", pf.Package.Runtime)
 }
 
+func TestInitProject_Interactive_InvalidVersion(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "bad-version")
+	require.NoError(t, os.Mkdir(projectDir, 0755))
+
+	oldOut := ui.Out
+	defer func() { ui.Out = oldOut }()
+	ui.Out = &bytes.Buffer{}
+
+	// First version is invalid, second is valid.
+	input := strings.NewReader("test-app\nnot-a-version\n0.1.0\nsrc/main.pl\nswi\n")
+	err := InitProject(projectDir, false, false, input)
+	require.NoError(t, err)
+
+	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "0.1.0", pf.Package.Version)
+}
+
+func TestInitProject_Interactive_InvalidEntry(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := filepath.Join(dir, "bad-entry")
+	require.NoError(t, os.Mkdir(projectDir, 0755))
+
+	oldOut := ui.Out
+	defer func() { ui.Out = oldOut }()
+	ui.Out = &bytes.Buffer{}
+
+	// First entry is invalid (no .pl), second is valid.
+	input := strings.NewReader("test-app\n0.1.0\n../../evil.py\nsrc/main.pl\nswi\n")
+	err := InitProject(projectDir, false, false, input)
+	require.NoError(t, err)
+
+	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "src/main.pl", pf.Package.Entry)
+}
+
 func TestInitProject_DoesNotCreateSourceFiles(t *testing.T) {
 	dir := t.TempDir()
 	projectDir := filepath.Join(dir, "no-source")
 	require.NoError(t, os.Mkdir(projectDir, 0755))
 
-	err := InitProject(projectDir, false, true)
+	err := InitProject(projectDir, false, true, nil)
 	require.NoError(t, err)
 
 	// InitProject should NOT create src/, tests/, .gitignore, README.md, etc.

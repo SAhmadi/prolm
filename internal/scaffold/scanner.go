@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/prolm/prolm/internal/ui"
 )
 
 // useModuleRe matches Prolog use_module(library(...)) directives.
@@ -66,6 +68,9 @@ func ScanDeps(dir string) (map[string]string, error) {
 			return nil // skip unreadable directories
 		}
 		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(path, ".pl") {
@@ -106,6 +111,9 @@ func ScanDeps(dir string) (map[string]string, error) {
 			}
 
 			deps[name] = "*"
+		}
+		if err := scanner.Err(); err != nil {
+			ui.Warn("scan error in %s: %s", path, err)
 		}
 		return nil
 	})
