@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -194,4 +195,122 @@ func gitInit(dir string) {
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	_ = cmd.Run()
+}
+
+// sanitizeRe matches characters not allowed in a package name.
+var sanitizeRe = regexp.MustCompile(`[^a-z0-9_-]+`)
+
+// sanitizeDirName converts a directory name into a valid package name
+// candidate by lowercasing and replacing invalid characters with hyphens.
+func sanitizeDirName(name string) string {
+	name = strings.ToLower(name)
+	name = sanitizeRe.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-")
+	return name
+}
+
+// InitProject initialises a prolm project in an existing directory by
+// creating Prolfile.toml and an empty Prolfile.lock. Unlike NewProject,
+// it does not create source files, directories, or run git init.
+func InitProject(dir string, scan, yes bool) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("resolving directory: %w", err)
+	}
+
+	prolfilePath := filepath.Join(absDir, "Prolfile.toml")
+	if _, err := os.Stat(prolfilePath); err == nil {
+		ui.Error("Prolfile.toml already exists in %s", absDir)
+		ui.Hint("Use `prolm install` to install dependencies from the existing Prolfile.toml")
+		return fmt.Errorf("Prolfile.toml already exists")
+	}
+
+	// Derive defaults from the directory name.
+	defaultName := sanitizeDirName(filepath.Base(absDir))
+	defaultVersion := "0.1.0"
+	defaultEntry := "src/main.pl"
+	defaultRuntime := "swi"
+
+	var name, version, entry, runtime string
+
+	if yes {
+		// Non-interactive: use defaults, fail if name is invalid.
+		name = defaultName
+		if err := manifest.ValidateName(name); err != nil {
+			ui.Error("cannot derive a valid project name from directory %q", filepath.Base(absDir))
+			ui.Hint("Run `prolm init` without --yes to enter a name interactively")
+			return fmt.Errorf("invalid project name %q: %w", name, err)
+		}
+		version = defaultVersion
+		entry = defaultEntry
+		runtime = defaultRuntime
+	} else {
+		// Interactive: prompt for each value.
+		p := newPrompter()
+
+		name = p.ask("Project name", defaultName)
+		if err := manifest.ValidateName(name); err != nil {
+			ui.Error("invalid project name %q: %s", name, err)
+			// Re-prompt once.
+			name = p.ask("Project name", defaultName)
+			if err := manifest.ValidateName(name); err != nil {
+				return fmt.Errorf("invalid project name %q: %w", name, err)
+			}
+		}
+
+		version = p.ask("Version", defaultVersion)
+
+		entry = p.ask("Entry point", defaultEntry)
+
+		runtime = p.ask("Runtime (swi, gnu, scryer)", defaultRuntime)
+		if err := manifest.ValidateRuntime(runtime); err != nil {
+			ui.Error("invalid runtime %q: %s", runtime, err)
+			runtime = p.ask("Runtime (swi, gnu, scryer)", defaultRuntime)
+			if err := manifest.ValidateRuntime(runtime); err != nil {
+				return fmt.Errorf("invalid runtime %q: %w", runtime, err)
+			}
+		}
+	}
+
+	// Scan for dependencies if requested.
+	var deps map[string]string
+	if scan {
+		deps, err = ScanDeps(absDir)
+		if err != nil {
+			ui.Warn("dependency scan failed: %s", err)
+			deps = nil
+		}
+	}
+
+	pf := &prolfile.ProlFile{
+		Meta: prolfile.Meta{
+			ProlfileVersion: prolfile.CurrentProlfileVersion,
+			MinProlmVersion: "0.1.0",
+		},
+		Package: prolfile.Package{
+			Name:    name,
+			Version: version,
+			Entry:   entry,
+			Runtime: runtime,
+		},
+		Dependencies: deps,
+	}
+
+	if err := manifest.Save(prolfilePath, pf); err != nil {
+		return fmt.Errorf("writing Prolfile.toml: %w", err)
+	}
+
+	// Create empty Prolfile.lock.
+	lockPath := filepath.Join(absDir, "Prolfile.lock")
+	if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+		return fmt.Errorf("creating Prolfile.lock: %w", err)
+	}
+
+	ui.Success("Initialized project %q", name)
+	if len(deps) > 0 {
+		ui.Info("Detected %d dependencies from .pl files", len(deps))
+		ui.Hint("Review [dependencies] in Prolfile.toml — the scanner may have missed some")
+	}
+	ui.Hint("Run `prolm install` to install dependencies")
+	return nil
 }
