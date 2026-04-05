@@ -24,13 +24,6 @@ var validTemplates = map[string]bool{
 	"app": true,
 }
 
-// validRuntimes lists supported Prolog runtimes.
-var validRuntimes = map[string]bool{
-	"swi":    true,
-	"gnu":    true,
-	"scryer": true,
-}
-
 // testAfterCreate is a hook for testing cleanup behavior.
 // It is called (when non-nil) immediately after the project directory is
 // created and created=true is set. Only set in tests (same-package access).
@@ -65,7 +58,7 @@ func NewProject(name, tmpl, runtime string) error {
 		ui.Hint("Use --template app (the only template available in this release)")
 		return fmt.Errorf("unknown template %q", tmpl)
 	}
-	if !validRuntimes[runtime] {
+	if runtime == "" || manifest.ValidateRuntime(runtime) != nil {
 		ui.Error("unknown runtime %q; must be one of: swi, gnu, scryer", runtime)
 		ui.Hint("Use --runtime swi, --runtime gnu, or --runtime scryer")
 		return fmt.Errorf("unknown runtime %q", runtime)
@@ -101,7 +94,9 @@ func NewProject(name, tmpl, runtime string) error {
 		return fmt.Errorf("creating tests directory: %w", err)
 	}
 
-	// Generate Prolfile.toml via manifest.Save() for deterministic serialization.
+	// Generate Prolfile.toml programmatically via manifest.Save() for
+	// deterministic serialization (per 8.28). There is intentionally no
+	// Prolfile.toml.tmpl template; the manifest package owns the format.
 	pf := &prolfile.ProlFile{
 		Meta: prolfile.Meta{
 			ProlfileVersion: prolfile.CurrentProlfileVersion,

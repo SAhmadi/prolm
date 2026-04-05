@@ -58,6 +58,16 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// ValidateRuntime checks whether name is a supported Prolog runtime.
+// Returns nil if valid, or a *ValidationError describing the problem.
+func ValidateRuntime(name string) error {
+	errs := validateRuntime(nil, name)
+	if len(errs) > 0 {
+		return &ValidationError{Errors: errs}
+	}
+	return nil
+}
+
 // Validate checks all fields of pf for correctness. It returns a
 // *ValidationError containing every problem found, or nil if valid.
 func Validate(pf *prolfile.ProlFile) error {
