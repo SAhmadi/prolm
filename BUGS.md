@@ -91,6 +91,37 @@ to not contain single quotes.
 
 ---
 
+### BUG-014 — CheckMinVersion hardcodes "swi" runtime name (Low)
+
+**File:** `internal/runtime/runtime.go:68`
+**Found:** PR #7 review
+
+`CheckMinVersion()` always sets `Runtime: "swi"` in the `ErrVersionTooOld` error,
+regardless of which runtime is actually being checked. When GNU Prolog and Scryer
+support are added in Phase 2.5, this will produce misleading error messages
+(e.g. "swi version 1.5.0 found" when checking GNU Prolog).
+
+**Fix:** Add a `runtime string` parameter to `CheckMinVersion` (or derive it
+from the caller), and pass it through to `ErrVersionTooOld{Runtime: runtime}`.
+
+---
+
+### QUALITY-014 — Package-level Detect() shadows Runtime.Detect() method (Trivial)
+
+**File:** `internal/runtime/runtime.go:41`
+**Found:** PR #7 review
+
+The package-level factory function `Detect(name string) (Runtime, error)` shares
+the same name as the `Runtime.Detect() (*RuntimeInfo, error)` interface method.
+At call sites this creates confusing patterns like `rt, _ := runtime.Detect("swi")`
+followed by `info, _ := rt.Detect()`. The factory does not actually detect anything;
+it only instantiates the correct runtime type.
+
+**Fix:** Rename the factory to `NewRuntime(name)` or `ForName(name)` to
+distinguish it from the interface method that performs actual binary detection.
+
+---
+
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
@@ -100,6 +131,8 @@ to not contain single quotes.
 | SEC-016 | Low | Open | Before 2.2 |
 | QUALITY-012 | Low | Open | Before 4.7 |
 | QUALITY-013 | Low | Open | Before 1.15 |
+| BUG-014 | Low | Open | Before 2.5 |
+| QUALITY-014 | Trivial | Open | Before 2.5 |
 
 ## Tracking (Fixed)
 
