@@ -8,22 +8,6 @@
 
 ## Open Issues
 
-### BUG-010 — TOCTOU race in stale lock removal (Medium)
-
-**File:** `internal/installer/store.go:111-112`
-**Found:** PR #6 review
-
-Between `isLockStale(lockPath)` returning true and `os.Remove(lockPath)`, another
-process can also detect staleness, remove the stale lock, create its own lock via
-`O_EXCL`, and then the first process removes *that* lock and creates its own.
-Result: two processes both believe they hold the exclusive lock, violating SEC-7.
-
-**Fix:** Wrap stale-check + remove in a single atomic operation, or use
-`os.Rename` to atomically replace the stale lock (rename to `.lock.stale`,
-then create new `.lock` with `O_EXCL`, then remove `.lock.stale`).
-
----
-
 ### QUALITY-011 — Hardcoded 0 in ErrRetriesExhausted error message (Trivial)
 
 **File:** `internal/httputil/retry.go:37`
@@ -38,25 +22,6 @@ does not store `MaxRetries`.
 
 **Fix:** Add `MaxRetries int` field to `ErrRetriesExhausted` and set it in
 `DoWithRetries()` at the point where the error is constructed (line 75).
-
----
-
-### SEC-016 — validateSymlink does not use filepath.EvalSymlinks (Low)
-
-**File:** `internal/installer/unpack.go:164-180`
-**Found:** PR #6 review
-
-CLAUDE.md SEC-13 specifies: *"Use filepath.EvalSymlinks() and verify the result
-has destDir as a prefix."* The current `validateSymlink()` uses string-based path
-resolution (`filepath.Join` + `filepath.Clean` + prefix check) instead of
-`filepath.EvalSymlinks()`. The current implementation is functionally safe during
-extraction (symlinks are being created, not followed), but does not provide
-defense-in-depth against on-disk symlink chains as the spec intends.
-
-**Fix:** After creating the symlink, call `filepath.EvalSymlinks()` on the
-resolved path and verify the result still has `destDir` as a prefix. Handle
-dangling symlinks gracefully (string-based check is sufficient if the target
-does not yet exist on disk).
 
 ---
 
@@ -91,21 +56,6 @@ to not contain single quotes.
 
 ---
 
-### BUG-014 — CheckMinVersion hardcodes "swi" runtime name (Low)
-
-**File:** `internal/runtime/runtime.go:68`
-**Found:** PR #7 review
-
-`CheckMinVersion()` always sets `Runtime: "swi"` in the `ErrVersionTooOld` error,
-regardless of which runtime is actually being checked. When GNU Prolog and Scryer
-support are added in Phase 2.5, this will produce misleading error messages
-(e.g. "swi version 1.5.0 found" when checking GNU Prolog).
-
-**Fix:** Add a `runtime string` parameter to `CheckMinVersion` (or derive it
-from the caller), and pass it through to `ErrVersionTooOld{Runtime: runtime}`.
-
----
-
 ### QUALITY-014 — Package-level Detect() shadows Runtime.Detect() method (Trivial)
 
 **File:** `internal/runtime/runtime.go:41`
@@ -126,12 +76,9 @@ distinguish it from the interface method that performs actual binary detection.
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
-| BUG-010 | Medium | Open | Before 2.2 |
 | QUALITY-011 | Trivial | Open | Before 2.2 |
-| SEC-016 | Low | Open | Before 2.2 |
 | QUALITY-012 | Low | Open | Before 4.7 |
 | QUALITY-013 | Low | Open | Before 1.15 |
-| BUG-014 | Low | Open | Before 2.5 |
 | QUALITY-014 | Trivial | Open | Before 2.5 |
 
 ## Tracking (Fixed)
@@ -165,3 +112,6 @@ distinguish it from the interface method that performs actual binary detection.
 | QUALITY-008 | Trivial | Fixed (EqualFold → == in verify.go) | Before 2.1 |
 | QUALITY-009 | Low | Fixed (simplified installOne fast path) | Before 2.1 |
 | QUALITY-010 | Low | Fixed (sort deps before iteration in Install) | Before 2.1 |
+| BUG-010 | Medium | Fixed (atomic rename in store.go) | Before 2.2 |
+| SEC-016 | Low | Fixed (EvalSymlinks check in unpack.go) | Before 2.2 |
+| BUG-014 | Low | Fixed (runtime param in CheckMinVersion) | Before 2.5 |

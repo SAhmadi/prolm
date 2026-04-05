@@ -405,7 +405,7 @@ func TestCheckMinVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			info := &RuntimeInfo{Path: "/usr/bin/swipl", Version: tt.version}
-			err := CheckMinVersion(info, tt.minVersion)
+			err := CheckMinVersion(info, "swi", tt.minVersion)
 
 			if !tt.wantErr {
 				assert.NoError(t, err)
@@ -414,7 +414,9 @@ func TestCheckMinVersion(t *testing.T) {
 			require.Error(t, err)
 			if tt.wantVersionOld {
 				var target *ErrVersionTooOld
-				assert.True(t, errors.As(err, &target), "expected ErrVersionTooOld, got %T", err)
+				if assert.True(t, errors.As(err, &target), "expected ErrVersionTooOld, got %T", err) {
+					assert.Equal(t, "swi", target.Runtime, "runtime name must propagate into ErrVersionTooOld")
+				}
 			}
 		})
 	}

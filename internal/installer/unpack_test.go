@@ -163,6 +163,25 @@ func TestUnpack_SymlinkWithinDestDir(t *testing.T) {
 	assert.Equal(t, "real.pl", target)
 }
 
+func TestUnpack_SymlinkDangling_NoError(t *testing.T) {
+	// A symlink whose target does not exist on disk (dangling symlink).
+	// filepath.EvalSymlinks will fail, so the code must gracefully fall through
+	// to the string-based validateSymlink result and not return an error.
+	dir := t.TempDir()
+	tarball := writeTarGz(t, dir, []tarEntry{
+		{Name: "link.pl", Typeflag: tar.TypeSymlink, Linkname: "nonexistent.pl"},
+	})
+
+	destDir := filepath.Join(dir, "out")
+	err := Unpack(tarball, destDir)
+	require.NoError(t, err, "dangling symlink within destDir should not error")
+
+	// Symlink itself must exist even though its target does not.
+	// os.Lstat does not follow the symlink, unlike os.Stat.
+	_, statErr := os.Lstat(filepath.Join(destDir, "link.pl"))
+	assert.NoError(t, statErr, "symlink file should exist on disk")
+}
+
 func TestUnpack_HardlinkValid(t *testing.T) {
 	dir := t.TempDir()
 	tarball := writeTarGz(t, dir, []tarEntry{

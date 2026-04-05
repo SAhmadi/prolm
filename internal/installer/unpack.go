@@ -56,6 +56,13 @@ func Unpack(tarballPath string, destDir string) error {
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("creating destination directory: %w", err)
 	}
+	// canonicalDestDir resolves any symlinks in destDir itself
+	// (e.g. /var → /private/var on macOS) so that filepath.EvalSymlinks
+	// comparisons later produce accurate prefix checks.
+	canonicalDestDir := filepath.Clean(destDir)
+	if cd, cdErr := filepath.EvalSymlinks(destDir); cdErr == nil {
+		canonicalDestDir = cd
+	}
 	success := false
 	defer func() {
 		if !success {
@@ -125,6 +132,21 @@ func Unpack(tarballPath string, destDir string) error {
 			}
 			if err := os.Symlink(header.Linkname, dest); err != nil {
 				return fmt.Errorf("creating symlink %s: %w", header.Name, err)
+			}
+			// SEC-13 defense-in-depth: after creating the symlink, verify that
+			// filepath.EvalSymlinks resolves within destDir. Guards against symlink
+			// chains where intermediate on-disk links could redirect outside destDir.
+			// If EvalSymlinks fails (dangling symlink — target not yet on disk),
+			// the string-based validateSymlink above is sufficient.
+			if resolved, evalErr := filepath.EvalSymlinks(dest); evalErr == nil {
+				if !strings.HasPrefix(
+					filepath.Clean(resolved)+string(os.PathSeparator),
+					canonicalDestDir+string(os.PathSeparator),
+				) {
+					return &ErrPathTraversal{
+						EntryPath: fmt.Sprintf("symlink chain escapes destination: %s -> %s", header.Name, resolved),
+					}
+				}
 			}
 
 		case tar.TypeLink:

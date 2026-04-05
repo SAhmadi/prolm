@@ -52,7 +52,9 @@ func Detect(name string) (Runtime, error) {
 
 // CheckMinVersion verifies that info.Version satisfies the minVersion constraint.
 // Returns nil if minVersion is empty or the version is sufficient.
-func CheckMinVersion(info *RuntimeInfo, minVersion string) error {
+// runtime is the identifier of the backend being checked (e.g. "swi", "gnu")
+// and is included in ErrVersionTooOld so callers see an accurate error message.
+func CheckMinVersion(info *RuntimeInfo, runtime, minVersion string) error {
 	if minVersion == "" {
 		return nil
 	}
@@ -66,7 +68,7 @@ func CheckMinVersion(info *RuntimeInfo, minVersion string) error {
 	}
 	if found.LessThan(required) {
 		return &ErrVersionTooOld{
-			Runtime:  "swi",
+			Runtime:  runtime,
 			Found:    info.Version,
 			Required: minVersion,
 		}

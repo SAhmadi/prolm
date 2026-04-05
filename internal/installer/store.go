@@ -107,10 +107,28 @@ func (s *Store) Lock() (unlock func(), err error) {
 		}
 
 		// Lock file exists — check if the owning process is still alive.
-		// If it is stale (process gone), remove the lock file and retry immediately.
+		// If stale, use os.Rename to atomically claim it before re-creating the
+		// lock. This eliminates the TOCTOU race where two processes both detect
+		// staleness, both remove the stale lock, and both create their own
+		// lock — resulting in dual lock holders (BUG-010).
 		if isLockStale(lockPath) {
-			os.Remove(lockPath)
-			continue
+			// os.Rename on POSIX is atomic. Once lockPath is renamed away,
+			// concurrent rename attempts fail with ENOENT — only one process wins.
+			staleClaim := lockPath + ".stale." + strconv.Itoa(os.Getpid())
+			if renameErr := os.Rename(lockPath, staleClaim); renameErr == nil {
+				// We atomically claimed the stale lock. Try to create the new lock.
+				newLock, createErr := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+				os.Remove(staleClaim) // always clean up temp file
+				if createErr == nil {
+					fmt.Fprintf(newLock, "%d\n", os.Getpid())
+					newLock.Close()
+					return func() { os.Remove(lockPath) }, nil
+				}
+				// Another process created the lock between our rename and O_EXCL.
+				// Fall through to deadline check and retry.
+			}
+			// Rename failed: another process already claimed the stale lock.
+			// Fall through to deadline check and retry.
 		}
 
 		if time.Now().After(deadline) {
