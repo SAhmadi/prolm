@@ -1,0 +1,10 @@
+:- use_module(library(plunit)).
+:- use_module(main).
+
+:- begin_tests(main).
+
+test(hello) :-
+    with_output_to(string(S), main),
+    assertion(S == "Hello, world!\n").
+
+:- end_tests(main).

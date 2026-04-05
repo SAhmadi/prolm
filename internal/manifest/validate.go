@@ -48,6 +48,16 @@ func (e *ValidationError) Error() string {
 	}
 }
 
+// ValidateName checks whether name is a valid package name.
+// Returns nil if valid, or a *ValidationError describing the problem.
+func ValidateName(name string) error {
+	errs := validateName(nil, name)
+	if len(errs) > 0 {
+		return &ValidationError{Errors: errs}
+	}
+	return nil
+}
+
 // Validate checks all fields of pf for correctness. It returns a
 // *ValidationError containing every problem found, or nil if valid.
 func Validate(pf *prolfile.ProlFile) error {

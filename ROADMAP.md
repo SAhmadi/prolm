@@ -216,13 +216,13 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.3*
 
-- [ ] Create embedded templates via `go:embed` in `internal/scaffold/templates/app/`:
+- [x] Create embedded templates via `go:embed` in `internal/scaffold/templates/app/`:
   - `Prolfile.toml.tmpl`
   - `main.pl.tmpl` — `main :- write('Hello, world!'), nl.`
   - `main_test.pl.tmpl` — minimal PlUnit test
   - `.gitignore.tmpl`
   - `README.md.tmpl`
-- [ ] `scaffold.go` — `NewProject(name, template, runtime) error`:
+- [x] `scaffold.go` — `NewProject(name, template, runtime) error`:
   - Validate name (no path separators, no `..`)
   - Create `<name>/`, `src/`, `tests/`
   - Render templates
@@ -230,7 +230,7 @@ This is the most security-critical sub-phase.
   - Run `git init` if git available
   - Add `.gitattributes` with `Prolfile.lock merge=ours` (per 8.19)
   - Print success message with next steps
-- [ ] `cmd/new.go` — Cobra command:
+- [x] `cmd/new.go` — Cobra command:
   - `--template` (default: `app`, only option in Phase 1)
   - `--runtime` (default: `swi`, only option in Phase 1)
 

@@ -8,6 +8,22 @@
 
 ## Open Issues
 
+### DRY-005 — Duplicate validRuntimes map in scaffold and manifest (Low)
+
+**File:** `internal/scaffold/scaffold.go:28`, `internal/manifest/validate.go:24`
+**Found:** Phase 1.8 implementation
+
+`validRuntimes` is defined as an unexported `map[string]bool` in both
+`internal/manifest/validate.go` and `internal/scaffold/scaffold.go`.
+If a new runtime is added, both maps must be updated in lockstep.
+
+**Fix:** Export the canonical map from `manifest` (or add a
+`ValidateRuntime(name string) error` helper like `ValidateName`), then
+use it in the scaffold package. Defer to Phase 2.5 when GNU/Scryer
+runtimes are added.
+
+---
+
 ### QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec (Low)
 
 **File:** `internal/runtime/swi.go:9,202`
@@ -27,6 +43,7 @@ platform-specific files with build tags.
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
+| DRY-005 | Low | Open | Before 2.5 |
 | QUALITY-012 | Low | Open | Before 4.7 |
 
 ## Tracking (Fixed)
