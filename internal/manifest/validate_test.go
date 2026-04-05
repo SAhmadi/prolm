@@ -215,6 +215,32 @@ func TestValidate_Runtime(t *testing.T) {
 	}
 }
 
+func TestValidateRuntime(t *testing.T) {
+	tests := []struct {
+		name    string
+		runtime string
+		wantErr bool
+	}{
+		{"swi", "swi", false},
+		{"gnu", "gnu", false},
+		{"scryer", "scryer", false},
+		{"empty", "", false},
+		{"unknown", "python", true},
+		{"uppercase", "SWI", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateRuntime(tt.runtime)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "runtime")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValidate_DepVersionConstraints(t *testing.T) {
 	tests := []struct {
 		name       string
