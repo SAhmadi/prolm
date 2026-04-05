@@ -60,6 +60,37 @@ does not yet exist on disk).
 
 ---
 
+### QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec (Low)
+
+**File:** `internal/runtime/swi.go:9,202`
+**Found:** Phase 1.7 implementation
+
+`SWIRuntime.Exec()` uses `syscall.Exec` which is not available on Windows.
+Phase 1 targets Linux and macOS only, so this is not blocking, but Phase 4
+(Windows support) will need a build-tag split (`exec_unix.go` / `exec_windows.go`)
+or an alternative using `os/exec.Command` + `os.Exit` on Windows.
+
+**Fix:** When Windows support is added in Phase 4, split `Exec()` into
+platform-specific files with build tags.
+
+---
+
+### QUALITY-013 — BuildRunArgs/BuildTestArgs do not escape single quotes in paths (Low)
+
+**File:** `internal/runtime/swi.go:137-140,164-165,185`
+**Found:** Phase 1.7 implementation
+
+The `fmt.Sprintf("use_module('%s')", dep)` pattern wraps paths in Prolog
+single quotes but does not escape single quotes within the path itself.
+A dependency installed at a path containing `'` (e.g. `/home/o'brien/...`)
+would produce malformed Prolog atoms.
+
+**Fix:** Escape single quotes in paths before interpolation (replace `'` with
+`''` per Prolog atom quoting rules), or use absolute paths that are validated
+to not contain single quotes.
+
+---
+
 ## Tracking (Open)
 
 | ID | Severity | Status | Phase |
@@ -67,6 +98,8 @@ does not yet exist on disk).
 | BUG-010 | Medium | Open | Before 2.2 |
 | QUALITY-011 | Trivial | Open | Before 2.2 |
 | SEC-016 | Low | Open | Before 2.2 |
+| QUALITY-012 | Low | Open | Before 4.7 |
+| QUALITY-013 | Low | Open | Before 1.15 |
 
 ## Tracking (Fixed)
 
