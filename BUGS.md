@@ -8,7 +8,55 @@
 
 ## Open Issues
 
-*No open issues.*
+### BUG-010 — TOCTOU race in stale lock removal (Medium)
+
+**File:** `internal/installer/store.go:111-112`
+**Found:** PR #6 review
+
+Between `isLockStale(lockPath)` returning true and `os.Remove(lockPath)`, another
+process can also detect staleness, remove the stale lock, create its own lock via
+`O_EXCL`, and then the first process removes *that* lock and creates its own.
+Result: two processes both believe they hold the exclusive lock, violating SEC-7.
+
+**Fix:** Wrap stale-check + remove in a single atomic operation, or use
+`os.Rename` to atomically replace the stale lock (rename to `.lock.stale`,
+then create new `.lock` with `O_EXCL`, then remove `.lock.stale`).
+
+---
+
+### QUALITY-011 — Hardcoded 0 in ErrRetriesExhausted error message (Trivial)
+
+**File:** `internal/httputil/retry.go:37`
+**Found:** PR #6 review
+
+```go
+return fmt.Sprintf("rate limited; all %d retry attempts exhausted; retry after %s", 0, e.RetryAfter)
+```
+
+The `%d` always prints `0` instead of the actual retry count. `ErrRetriesExhausted`
+does not store `MaxRetries`.
+
+**Fix:** Add `MaxRetries int` field to `ErrRetriesExhausted` and set it in
+`DoWithRetries()` at the point where the error is constructed (line 75).
+
+---
+
+### SEC-016 — validateSymlink does not use filepath.EvalSymlinks (Low)
+
+**File:** `internal/installer/unpack.go:164-180`
+**Found:** PR #6 review
+
+CLAUDE.md SEC-13 specifies: *"Use filepath.EvalSymlinks() and verify the result
+has destDir as a prefix."* The current `validateSymlink()` uses string-based path
+resolution (`filepath.Join` + `filepath.Clean` + prefix check) instead of
+`filepath.EvalSymlinks()`. The current implementation is functionally safe during
+extraction (symlinks are being created, not followed), but does not provide
+defense-in-depth against on-disk symlink chains as the spec intends.
+
+**Fix:** After creating the symlink, call `filepath.EvalSymlinks()` on the
+resolved path and verify the result still has `destDir` as a prefix. Handle
+dangling symlinks gracefully (string-based check is sufficient if the target
+does not yet exist on disk).
 
 ---
 
@@ -16,6 +64,9 @@
 
 | ID | Severity | Status | Phase |
 |----|----------|--------|-------|
+| BUG-010 | Medium | Open | Before 2.2 |
+| QUALITY-011 | Trivial | Open | Before 2.2 |
+| SEC-016 | Low | Open | Before 2.2 |
 
 ## Tracking (Fixed)
 
