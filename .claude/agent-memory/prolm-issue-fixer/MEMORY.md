@@ -1,0 +1,1 @@
+- [Cobra flag reset between test invocations](feedback_cobra_flag_reset.md) — Cobra retains flag Changed state across Execute() calls; call ResetFlags + re-register in test helpers
