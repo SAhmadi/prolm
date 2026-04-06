@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -49,20 +50,28 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if manifestPath == "" {
 		discovered, err := manifest.Discover("")
 		if err != nil {
-			return err
+			return fmt.Errorf("discovering Prolfile.toml: %w", err)
 		}
 		manifestPath = discovered
 	}
 
 	pf, err := manifest.Load(manifestPath, manifest.LoadOptions{ProlmVersion: Version})
 	if err != nil {
-		return err
+		return fmt.Errorf("reading Prolfile.toml: %w", err)
 	}
 
 	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
 	lock, err := lockfile.Load(lockPath)
 	if err != nil {
-		return err
+		// §8.19: auto-heal a lockfile containing Git merge conflict markers
+		// by discarding it and re-resolving from Prolfile.toml.
+		var conflictErr *lockfile.GitConflictError
+		if errors.As(err, &conflictErr) {
+			ui.Warn("Lockfile had merge conflicts — re-resolved from Prolfile.toml")
+			lock = nil
+		} else {
+			return fmt.Errorf("reading Prolfile.lock: %w", err)
+		}
 	}
 
 	reg, err := newRegistry()

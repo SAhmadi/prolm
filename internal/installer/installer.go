@@ -144,7 +144,15 @@ func installOne(ctx context.Context, name, constraint string, lock *prolfile.Loc
 		return nil, fmt.Errorf("downloading: %w", err)
 	}
 
-	// SEC-1: compute checksum.
+	// SEC-1 / §8.6: if the registry advertised a checksum, verify the
+	// downloaded bytes against THAT before trusting any locally computed
+	// hash. This closes the TOCTOU window on fresh installs where the
+	// lockfile does not yet pin a sha256.
+	if err := VerifyRegistryChecksum(tarball, chosen.Checksum); err != nil {
+		return nil, fmt.Errorf("verifying registry checksum: %w", err)
+	}
+
+	// SEC-1: compute sha256 for the lockfile.
 	checksum, err := ComputeChecksum(tarball)
 	if err != nil {
 		return nil, fmt.Errorf("computing checksum: %w", err)

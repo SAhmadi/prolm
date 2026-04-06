@@ -168,6 +168,9 @@ func TestExecute_Install_RegistryError(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing-pack")
 }
 
+// TestExecute_Install_GitConflictedLockfile verifies CLAUDE.md §8.19:
+// a Prolfile.lock containing Git merge conflict markers must be auto-healed
+// by discarding the conflicted lock and re-resolving from Prolfile.toml.
 func TestExecute_Install_GitConflictedLockfile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -176,9 +179,35 @@ func TestExecute_Install_GitConflictedLockfile(t *testing.T) {
 	conflict := "<<<<<<< HEAD\n[meta]\nlock_version = 1\n=======\n[meta]\nlock_version = 1\n>>>>>>> branch\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "Prolfile.lock"), []byte(conflict), 0644))
 
-	withInstallSeams(t, &fakeRegistry{}, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	tarball := makeTarball(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &fakeRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"clpfd": {{Name: "clpfd", Version: "1.4.3"}},
+		},
+		downloadURL: map[string]string{
+			"clpfd@1.4.3": srv.URL + "/clpfd-1.4.3.tar.gz",
+		},
+	}
+	withInstallSeams(t, reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"install"})
-	err := Execute()
-	require.Error(t, err)
+	require.NoError(t, Execute())
+
+	// Lockfile must have been re-written cleanly (no conflict markers).
+	data, err := os.ReadFile(filepath.Join(dir, "Prolfile.lock"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "<<<<<<<")
+	assert.NotContains(t, string(data), "=======")
+	assert.NotContains(t, string(data), ">>>>>>>")
+	assert.Contains(t, string(data), "clpfd")
+
+	// Package must be installed in the store.
+	_, err = os.Stat(filepath.Join(dir, "store", "clpfd", "1.4.3"))
+	assert.NoError(t, err, "package should be unpacked into store")
 }

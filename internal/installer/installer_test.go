@@ -321,6 +321,102 @@ func TestInstall_YankedVersionSkipped(t *testing.T) {
 	assert.Equal(t, "1.0.0", lf.Packages[0].Version) // Skipped yanked 2.0.0.
 }
 
+// TestInstall_RegistryChecksumMismatch verifies SEC-016 / CLAUDE.md §8.6:
+// when the registry advertises a checksum, the downloaded tarball must be
+// verified against THAT checksum (not just hashed and trusted) to close the
+// TOCTOU window between version lookup and lock entry creation.
+func TestInstall_RegistryChecksumMismatch(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	// Server returns real bytes; registry advertises a sha1 of *different* bytes.
+	tarball := makeTarball(t, map[string]string{"pkg/main.pl": "real."})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	// 40-char hex that is NOT the sha1 of `tarball`.
+	bogusSHA1 := "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"mypack": {{
+				Name:     "mypack",
+				Version:  "1.0.0",
+				URL:      srv.URL + "/mypack-1.0.0.tar.gz",
+				Checksum: bogusSHA1,
+			}},
+		},
+		downloadURL: map[string]string{
+			"mypack@1.0.0": srv.URL + "/mypack-1.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"mypack": "*"},
+	}
+
+	_, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "checksum")
+
+	// Cache file must have been deleted on mismatch.
+	cachedTarball := filepath.Join(cacheDir, "mypack", "1.0.0.tar.gz")
+	_, statErr := os.Stat(cachedTarball)
+	assert.True(t, os.IsNotExist(statErr), "cache file should be deleted on mismatch")
+
+	// Pack must NOT have been unpacked into the store.
+	store := NewStore(storeDir)
+	assert.False(t, store.IsInstalled("mypack", "1.0.0"))
+}
+
+// TestInstall_RegistryChecksumMatch verifies that a correct sha1 advertised
+// by the registry passes verification and the install proceeds.
+func TestInstall_RegistryChecksumMatch(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	tarball := makeTarball(t, map[string]string{"pkg/main.pl": "ok."})
+
+	// Compute the real sha1 of the tarball bytes.
+	tmp := filepath.Join(t.TempDir(), "t.tar.gz")
+	require.NoError(t, os.WriteFile(tmp, tarball, 0644))
+	sha1Hex, err := ComputeSHA1(tmp)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"mypack": {{
+				Name:     "mypack",
+				Version:  "1.0.0",
+				URL:      srv.URL + "/mypack-1.0.0.tar.gz",
+				Checksum: sha1Hex,
+			}},
+		},
+		downloadURL: map[string]string{
+			"mypack@1.0.0": srv.URL + "/mypack-1.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"mypack": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 1)
+}
+
 func TestInstall_DeterministicOrder(t *testing.T) {
 	// Verify that Install processes packages in alphabetical order regardless of
 	// map iteration order. We record the server-side request order to confirm.
