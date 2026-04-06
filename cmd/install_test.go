@@ -83,11 +83,22 @@ runtime = "swi"
 }
 
 // resetRootCmd restores the cmd-package globals so tests don't bleed.
+// It also resets the Changed state on all installCmd flags so that stub-flag
+// tests don't pollute subsequent tests within the same binary run.
 func resetRootCmd(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
+
+	// Reset the Changed state on all installCmd flags to clear state left by
+	// a previous test invocation (e.g. --frozen from TestExecute_Install_StubFlags).
+	// Cobra's ResetFlags drops the FlagSet entirely, so we re-register afterwards.
+	installCmd.ResetFlags()
+	installCmd.Flags().Bool("frozen", false, "[Phase 2] Fail if Prolfile.lock would change (not yet implemented)")
+	installCmd.Flags().Bool("offline", false, "[Phase 2] Use local cache only, no network requests (not yet implemented)")
+	installCmd.Flags().Bool("no-verify", false, "[Phase 2] Skip checksum verification — DANGEROUS, dev only (not yet implemented)")
+
 	t.Cleanup(func() {
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)
@@ -96,19 +107,25 @@ func resetRootCmd(t *testing.T) *bytes.Buffer {
 	return buf
 }
 
-// withInstallSeams swaps the cmd seams for the duration of the test.
-func withInstallSeams(t *testing.T, reg registry.Registry, storeDir, cacheDir string) {
-	t.Helper()
-	origReg := newRegistry
-	origOpts := installOpts
-	newRegistry = func() (registry.Registry, error) { return reg, nil }
-	installOpts = func() installer.Options {
-		return installer.Options{StoreDir: storeDir, CacheDir: cacheDir}
+// newTestRunner builds an installRunner with a fake registry and temp-dir
+// store/cache. Tests use this instead of mutating package globals (QUALITY-017).
+func newTestRunner(reg registry.Registry, storeDir, cacheDir string) *installRunner {
+	return &installRunner{
+		newRegistry: func() (registry.Registry, error) { return reg, nil },
+		installOpts: func() installer.Options {
+			return installer.Options{StoreDir: storeDir, CacheDir: cacheDir}
+		},
 	}
-	t.Cleanup(func() {
-		newRegistry = origReg
-		installOpts = origOpts
-	})
+}
+
+// withTestRunner replaces defaultInstallRunner for the duration of the test.
+// It does NOT use t.Parallel()-unsafe global mutation; the swap is confined to
+// the single goroutine running the test and restored in t.Cleanup.
+func withTestRunner(t *testing.T, runner *installRunner) {
+	t.Helper()
+	orig := defaultInstallRunner
+	defaultInstallRunner = runner
+	t.Cleanup(func() { defaultInstallRunner = orig })
 }
 
 func TestExecute_Install_Fresh(t *testing.T) {
@@ -130,7 +147,7 @@ func TestExecute_Install_Fresh(t *testing.T) {
 			"clpfd@1.4.3": srv.URL + "/clpfd-1.4.3.tar.gz",
 		},
 	}
-	withInstallSeams(t, reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	withTestRunner(t, newTestRunner(reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache")))
 
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"install"})
@@ -146,7 +163,7 @@ func TestExecute_Install_NoManifest(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	withInstallSeams(t, &fakeRegistry{}, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	withTestRunner(t, newTestRunner(&fakeRegistry{}, filepath.Join(dir, "store"), filepath.Join(dir, "cache")))
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"install"})
 	err := Execute()
@@ -159,7 +176,7 @@ func TestExecute_Install_RegistryError(t *testing.T) {
 	writeManifest(t, dir, "missing-pack")
 
 	reg := &fakeRegistry{} // empty: Versions returns ErrPackageNotFound
-	withInstallSeams(t, reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	withTestRunner(t, newTestRunner(reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache")))
 
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"install"})
@@ -193,7 +210,7 @@ func TestExecute_Install_GitConflictedLockfile(t *testing.T) {
 			"clpfd@1.4.3": srv.URL + "/clpfd-1.4.3.tar.gz",
 		},
 	}
-	withInstallSeams(t, reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	withTestRunner(t, newTestRunner(reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache")))
 
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"install"})
@@ -210,4 +227,75 @@ func TestExecute_Install_GitConflictedLockfile(t *testing.T) {
 	// Package must be installed in the store.
 	_, err = os.Stat(filepath.Join(dir, "store", "clpfd", "1.4.3"))
 	assert.NoError(t, err, "package should be unpacked into store")
+}
+
+// TestExecute_Install_StubFlags verifies QUALITY-015: --frozen, --offline, and
+// --no-verify are registered as Phase 2 stubs and return a clear error rather
+// than cobra's "unknown flag" message.
+func TestExecute_Install_StubFlags(t *testing.T) {
+	for _, flag := range []string{"--frozen", "--offline", "--no-verify"} {
+		t.Run(flag, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+			writeManifest(t, dir, "clpfd")
+
+			withTestRunner(t, newTestRunner(&fakeRegistry{}, filepath.Join(dir, "store"), filepath.Join(dir, "cache")))
+			resetRootCmd(t)
+			rootCmd.SetArgs([]string{"install", flag})
+			err := Execute()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not yet implemented",
+				"stub flag %s should return a not-yet-implemented error", flag)
+			assert.Contains(t, err.Error(), "Phase 2",
+				"stub flag %s error should mention Phase 2", flag)
+		})
+	}
+}
+
+// TestExecute_Install_NoLockfileRewrite verifies QUALITY-016: when a second
+// `prolm install` produces a byte-identical lockfile, the file's mtime must not
+// change (i.e. Save is not called again).
+func TestExecute_Install_NoLockfileRewrite(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeManifest(t, dir, "clpfd")
+
+	tarball := makeTarball(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &fakeRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"clpfd": {{Name: "clpfd", Version: "1.4.3"}},
+		},
+		downloadURL: map[string]string{
+			"clpfd@1.4.3": srv.URL + "/clpfd-1.4.3.tar.gz",
+		},
+	}
+
+	runner := newTestRunner(reg, filepath.Join(dir, "store"), filepath.Join(dir, "cache"))
+	withTestRunner(t, runner)
+
+	// First install: creates the lockfile.
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"install"})
+	require.NoError(t, Execute())
+
+	lockPath := filepath.Join(dir, "Prolfile.lock")
+	info1, err := os.Stat(lockPath)
+	require.NoError(t, err)
+
+	// Second install: everything is already in the store; lockfile content is unchanged.
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"install"})
+	require.NoError(t, Execute())
+
+	info2, err := os.Stat(lockPath)
+	require.NoError(t, err)
+
+	// On systems with sub-second mtime resolution the times must be equal.
+	assert.Equal(t, info1.ModTime(), info2.ModTime(),
+		"second install must not rewrite an unchanged lockfile (QUALITY-016)")
 }

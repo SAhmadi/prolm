@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -14,14 +15,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newRegistry is a package-level seam so tests can inject a fake registry.
-var newRegistry = func() (registry.Registry, error) {
-	return registry.NewSWIRegistry()
+// installRunner holds the seams used by the install command.
+// Tests construct their own installRunner instead of mutating package globals,
+// which eliminates the global-state race described in QUALITY-017.
+type installRunner struct {
+	newRegistry func() (registry.Registry, error)
+	installOpts func() installer.Options
 }
 
-// installOpts is a package-level seam so tests can redirect store/cache dirs
-// away from the user's home directory.
-var installOpts = func() installer.Options { return installer.Options{} }
+// defaultInstallRunner is the production runner used by the Cobra command.
+var defaultInstallRunner = &installRunner{
+	newRegistry: func() (registry.Registry, error) {
+		return registry.NewSWIRegistry()
+	},
+	installOpts: func() installer.Options { return installer.Options{} },
+}
 
 var installCmd = &cobra.Command{
 	Use:   "install",
@@ -33,15 +41,31 @@ the install is a fast no-op. Otherwise prolm queries the registry, downloads
 each tarball, verifies its SHA-256 checksum, unpacks it into the store, and
 writes a fresh Prolfile.lock.`,
 	Args: cobra.NoArgs,
-	RunE: runInstall,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return defaultInstallRunner.run(cmd, args)
+	},
 }
 
 func init() {
 	rootCmd.AddCommand(installCmd)
+
+	// --frozen and --offline are Phase 2 features (CLAUDE.md §7 / QUALITY-015).
+	// Registering them now as stubs lets scripts fail fast with a useful message
+	// instead of cobra's "unknown flag" error.
+	installCmd.Flags().Bool("frozen", false, "[Phase 2] Fail if Prolfile.lock would change (not yet implemented)")
+	installCmd.Flags().Bool("offline", false, "[Phase 2] Use local cache only, no network requests (not yet implemented)")
+	installCmd.Flags().Bool("no-verify", false, "[Phase 2] Skip checksum verification — DANGEROUS, dev only (not yet implemented)")
 }
 
-func runInstall(cmd *cobra.Command, args []string) error {
+func (r *installRunner) run(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
+
+	// Reject Phase 2 stub flags with a clear message rather than silently ignoring them.
+	for _, flag := range []string{"frozen", "offline", "no-verify"} {
+		if f := cmd.Flags().Lookup(flag); f != nil && f.Changed {
+			return fmt.Errorf("--%s is not yet implemented; it will be available in Phase 2", flag)
+		}
+	}
 
 	configPath, _ := cmd.Flags().GetString("config")
 
@@ -74,19 +98,36 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	reg, err := newRegistry()
+	// Capture the on-disk bytes before the install so we can compare afterwards.
+	// If the resulting lockfile is byte-identical to what is already on disk, we
+	// skip the write to avoid spurious mtime/inode churn (QUALITY-016).
+	var existingLockBytes []byte
+	if existingData, readErr := os.ReadFile(lockPath); readErr == nil {
+		existingLockBytes = existingData
+	}
+
+	reg, err := r.newRegistry()
 	if err != nil {
 		return fmt.Errorf("initializing registry: %w", err)
 	}
 
 	start := time.Now()
-	newLock, err := installer.Install(ctx, pf, lock, reg, installOpts())
+	newLock, err := installer.Install(ctx, pf, lock, reg, r.installOpts())
 	if err != nil {
 		return err
 	}
 
-	if err := lockfile.Save(lockPath, newLock); err != nil {
-		return fmt.Errorf("saving lockfile: %w", err)
+	// Encode the new lockfile and compare against the current on-disk content.
+	// Only write when the content has actually changed (QUALITY-016).
+	newLockBytes, err := lockfile.Encode(newLock)
+	if err != nil {
+		return fmt.Errorf("encoding lockfile: %w", err)
+	}
+
+	if string(newLockBytes) != string(existingLockBytes) {
+		if err := lockfile.Save(lockPath, newLock); err != nil {
+			return fmt.Errorf("saving lockfile: %w", err)
+		}
 	}
 
 	ui.Success("Installed %d packages in %s", len(newLock.Packages), time.Since(start).Round(time.Millisecond))

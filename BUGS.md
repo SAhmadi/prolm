@@ -25,6 +25,13 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
-| QUALITY-015 | Low    | [QUALITY-015 — install command missing --frozen / --offline / --no-verify flags claimed in PR description](https://github.com/SAhmadi/prolm/issues/14) | Phase 1 |
-| QUALITY-016 | Low    | [QUALITY-016 — runInstall always rewrites Prolfile.lock even when content is unchanged](https://github.com/SAhmadi/prolm/issues/15) | Phase 1 |
-| QUALITY-017 | Low    | [QUALITY-017 — cmd-package install seams (newRegistry, installOpts) are package globals without sync](https://github.com/SAhmadi/prolm/issues/16) | Phase 1 |
+
+---
+
+## Resolved Issues
+
+| ID | Severity | GitHub Issue | Resolution | Commit | Date |
+|----|----------|--------------|------------|--------|------|
+| QUALITY-015 | Low | [#14 — install command missing --frozen / --offline / --no-verify flags](https://github.com/SAhmadi/prolm/issues/14) | Registered all three flags as Phase 2 stubs; passing them returns a clear "not yet implemented" error instead of cobra's "unknown flag" | TBD | 2026-04-06 |
+| QUALITY-016 | Low | [#15 — runInstall always rewrites Prolfile.lock even when content is unchanged](https://github.com/SAhmadi/prolm/issues/15) | Added `lockfile.Encode()` helper; `runInstall` now compares encoded bytes against on-disk content and skips `Save` when identical | TBD | 2026-04-06 |
+| QUALITY-017 | Low | [#16 — install seams are package globals without sync](https://github.com/SAhmadi/prolm/issues/16) | Replaced `newRegistry`/`installOpts` package vars with an `installRunner` struct; tests use `newTestRunner` + `withTestRunner` instead of mutating globals | TBD | 2026-04-06 |
