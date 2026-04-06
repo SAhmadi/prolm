@@ -1,0 +1,23 @@
+[meta]
+min_prolm_version = "0.1.0"
+prolfile_version = 1
+
+[package]
+authors = ["Test Author <test@example.com>"]
+description = "A valid project fixture for prolm integration tests."
+entry = "src/main.pl"
+homepage = ""
+license = "MIT"
+name = "valid-project"
+runtime = "swi"
+version = "0.1.0"
+
+[dependencies]
+
+[dev-dependencies]
+
+[runtime.swi]
+flags = []
+min_version = "9.0"
+
+[scripts]
