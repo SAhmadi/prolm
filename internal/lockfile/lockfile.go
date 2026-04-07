@@ -130,6 +130,38 @@ func IsEmpty(lf *prolfile.LockFile) bool {
 	return lf == nil || len(lf.Packages) == 0
 }
 
+// Encode renders lf to its canonical on-disk byte representation — the same
+// bytes that Save would write — without touching the filesystem.
+//
+// This is useful for change detection: callers can compare the encoded bytes
+// against the current file contents to decide whether a Save is necessary.
+func Encode(lf *prolfile.LockFile) ([]byte, error) {
+	// Mirror the normalisation steps performed by Save.
+	packages := make([]prolfile.LockEntry, len(lf.Packages))
+	copy(packages, lf.Packages)
+
+	sort.SliceStable(packages, func(i, j int) bool {
+		return packages[i].Name < packages[j].Name
+	})
+
+	for i := range packages {
+		if packages[i].Dependencies == nil {
+			packages[i].Dependencies = []string{}
+		}
+	}
+
+	out := *lf
+	out.Packages = packages
+
+	var buf bytes.Buffer
+	enc := toml.NewEncoder(&buf)
+	if err := enc.Encode(out); err != nil {
+		return nil, fmt.Errorf("encoding Prolfile.lock: %w", err)
+	}
+
+	return []byte(lockfileHeader + buf.String()), nil
+}
+
 // containsConflictMarkers checks for Git merge conflict markers in raw data.
 // The <<<<<<< and >>>>>>> markers use HasPrefix because Git appends branch
 // names after them. The ======= separator is matched exactly (after trimming

@@ -257,8 +257,8 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.3, 1.4, 1.5, 1.6*
 
-- [ ] Cobra command (no `--frozen`/`--offline` in Phase 1)
-- [ ] Flow:
+- [x] Cobra command (no `--frozen`/`--offline` in Phase 1)
+- [x] Flow:
   1. `manifest.Load()` — find and parse Prolfile.toml
   2. `lockfile.Load()` — try to load Prolfile.lock (may be nil)
   3. If lock exists and all packages in store: done (fast path)
