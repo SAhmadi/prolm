@@ -289,20 +289,20 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.7*
 
-- [ ] `discover.go` — `Discover(projectDir) ([]string, error)`:
+- [x] `discover.go` — `Discover(projectDir) ([]string, error)`:
   - Find `**/*_test.pl` and `**/test_*.pl`
-- [ ] `runner.go` — `Run(files, deps, runtime, opts) (*TestResult, error)`:
+- [x] `runner.go` — `Run(files, deps, runtime, opts) (*TestResult, error)`:
   - Invoke swipl with PlUnit test files
   - Capture stdout/stderr, pass to parser
   - `opts`: `Filter string`, `Verbose bool`, `Timeout time.Duration` (default 30s)
-- [ ] `parser.go` — parse PlUnit output into structured `TestResult`:
+- [x] `parser.go` — parse PlUnit output into structured `TestResult`:
   - `TotalTests`, `Passed`, `Failed`, `Errors`, individual test statuses
-- [ ] `reporter.go` — format with colour:
+- [x] `reporter.go` — format with colour:
   - Green checkmark passed, red X failed
   - Summary: "N passed, M failed (Xs)"
   - Respect `--no-color` and `--json`
   - Exit code 1 on any failure (CI-safe)
-- [ ] `cmd/test.go` — Cobra command with `--filter`, `--verbose`, `--timeout`
+- [x] `cmd/test.go` — Cobra command with `--filter`, `--verbose`, `--timeout`
 
 **Testing:** Parser against sample PlUnit output. Discovery finds correct files. Reporter output. Exit code 1 on failure. `--filter` works.
 
