@@ -7,7 +7,6 @@ import (
 	"github.com/prolm/prolm/internal/installer"
 	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/ui"
-	"github.com/prolm/prolm/pkg/prolfile"
 )
 
 // verifyStoreDeps loads Prolfile.lock next to manifestPath and verifies that
@@ -15,8 +14,8 @@ import (
 // path of each installed pack (suitable for use_module/1 arguments) in lock
 // order. On failure it emits a user-friendly hint and returns an error.
 //
-// Shared by `prolm run` and `prolm test` (addresses DRY-004).
-func verifyStoreDeps(_ *prolfile.ProlFile, manifestPath, storeDir string) ([]string, error) {
+// Shared by `prolm run` and `prolm test` (QUALITY-020, DRY-003).
+func verifyStoreDeps(manifestPath, storeDir string) ([]string, error) {
 	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
 	lock, err := lockfile.Load(lockPath)
 	if err != nil {

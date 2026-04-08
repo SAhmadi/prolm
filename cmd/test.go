@@ -55,7 +55,7 @@ func (r *testCmdRunner) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	depPaths, err := verifyStoreDeps(pf, manifestPath, r.storeDir)
+	depPaths, err := verifyStoreDeps(manifestPath, r.storeDir)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (r *testCmdRunner) run(cmd *cobra.Command, args []string) error {
 	testrunner.Report(res, ui.Out, testrunner.ReportOptions{
 		Verbose: verbose,
 		JSON:    viper.GetBool("json"),
-		NoColor: viper.GetBool("no-color") || os.Getenv("NO_COLOR") != "",
+		NoColor: ui.NoColor(),
 	})
 
 	if res.FailedCount() > 0 {

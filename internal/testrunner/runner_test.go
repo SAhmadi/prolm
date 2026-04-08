@@ -54,11 +54,38 @@ func TestRunner_ExecError(t *testing.T) {
 	r := &Runner{Exec: func(context.Context, string, ...string) ([]byte, []byte, error) {
 		return nil, []byte("boom"), errors.New("exit 1")
 	}}
+	_, err := r.Run(context.Background(), "/bin/swipl", []string{"a_test.pl"}, nil, &fakeRT{}, nil, Options{})
+	// A non-zero exit with no parsed PlUnit output (Total==0) is a genuine
+	// runtime failure — not a test failure — so it must be surfaced as an error
+	// (BUG-013). The captured stderr is included so the user sees the root cause.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// BUG-013: an exec error must be surfaced when res.Total==0, even when swipl
+// writes something to stderr (e.g. "Cannot find boot file").
+func TestRunner_ExecError_SurfacedWhenStderrPresent(t *testing.T) {
+	r := &Runner{Exec: func(context.Context, string, ...string) ([]byte, []byte, error) {
+		// swipl writes a message to stderr then exits non-zero — no PlUnit output.
+		return nil, []byte("Cannot find boot file"), errors.New("exit status 1")
+	}}
+	_, err := r.Run(context.Background(), "/bin/swipl", []string{"a_test.pl"}, nil, &fakeRT{}, nil, Options{})
+	require.Error(t, err, "exec error must be surfaced when Total==0, even if stderr is non-empty")
+	assert.Contains(t, err.Error(), "Cannot find boot file",
+		"surfaced error must include the captured stderr so the user sees the root cause")
+}
+
+// BUG-013: a non-zero exit with partial test output (some tests ran) must NOT
+// return an error — failing tests cause non-zero exits and that is normal.
+func TestRunner_ExecError_NotSurfacedWhenTestsRan(t *testing.T) {
+	r := &Runner{Exec: func(context.Context, string, ...string) ([]byte, []byte, error) {
+		// PlUnit ran, reported failures, and swipl exited 1.
+		stdout := "% test main:truth: failed\n% 1 test failed out of 2\n"
+		return []byte(stdout), []byte("some stderr"), errors.New("exit status 1")
+	}}
 	res, err := r.Run(context.Background(), "/bin/swipl", []string{"a_test.pl"}, nil, &fakeRT{}, nil, Options{})
-	// Non-zero exit from swipl is expected when tests fail; we surface the result,
-	// not an error. The caller inspects Failed/Errors to decide the exit code.
-	require.NoError(t, err)
-	assert.NotNil(t, res)
+	require.NoError(t, err, "non-zero exit with parsed test results must not be an error")
+	assert.Equal(t, 1, res.Failed)
 }
 
 func TestRunner_RejectsUnsafeFilter(t *testing.T) {

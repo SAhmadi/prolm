@@ -41,8 +41,10 @@ var reAllPassed = regexp.MustCompile(`(?m)^%\s*All\s+(\d+)\s+tests?\s+passed`)
 var reFailedOutOf = regexp.MustCompile(`(?m)^%\s*(\d+)\s+tests?\s+failed\s+out\s+of\s+(\d+)`)
 
 // reCaseFail matches lines like "% test main:truth: failed" or
-// "ERROR: test main:truth: <message>".
-var reCaseFail = regexp.MustCompile(`test\s+([A-Za-z0-9_]+):([A-Za-z0-9_]+):\s*(.*)`)
+// "ERROR: test main:truth: <message>". Suite and case names use [^:\s]+ so
+// that hyphenated or dotted identifiers (e.g. "my-suite:case-1") are captured
+// correctly (BUG-012).
+var reCaseFail = regexp.MustCompile(`test\s+([^:\s]+):([^:\s]+):\s*(.*)`)
 
 // Parse turns swipl/PlUnit stdout+stderr into a structured TestResult.
 //
@@ -68,6 +70,11 @@ func Parse(stdout, stderr string) *TestResult {
 			res.Passed = 0
 		}
 	}
+
+	// hasSummary tracks whether an aggregate summary line was found.
+	// When it is absent but per-case failure lines exist, we backfill
+	// res.Failed/res.Errors from the captured cases (BUG-012).
+	hasSummary := res.Total > 0
 
 	// Capture individual failing cases.
 	seen := map[string]struct{}{}
@@ -95,6 +102,23 @@ func Parse(stdout, stderr string) *TestResult {
 			Status:  status,
 			Message: strings.TrimSpace(m[3]),
 		})
+	}
+
+	// When no aggregate summary line was present, derive Failed/Errors counts
+	// from the individual cases captured above so that FailedCount() is correct
+	// and the process exits non-zero (CI-safety requirement, BUG-012).
+	if !hasSummary {
+		for _, c := range res.Cases {
+			switch c.Status {
+			case "fail":
+				res.Failed++
+			case "error":
+				res.Errors++
+			}
+		}
+		if res.Failed+res.Errors > 0 {
+			res.Total = res.Failed + res.Errors
+		}
 	}
 
 	return res
