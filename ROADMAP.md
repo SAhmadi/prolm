@@ -274,10 +274,10 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.3, 1.4, 1.7*
 
-- [ ] Cobra command with `--runtime` (override) and `--goal` (default: `main`)
-- [ ] Support positional args: `prolm run`, `prolm run src/other.pl`, `prolm run scriptname`
-- [ ] Support `--` separator for passing args to Prolog
-- [ ] Flow:
+- [x] Cobra command with `--runtime` (override) and `--goal` (default: `main`)
+- [x] Support positional args: `prolm run`, `prolm run src/other.pl`, `prolm run scriptname`
+- [x] Support `--` separator for passing args to Prolog
+- [x] Flow:
   1. Load manifest + lockfile
   2. Verify all locked deps are in store (error: "Run `prolm install` first")
   3. Resolve entry point from args, `[package].entry`, or `[scripts]`
