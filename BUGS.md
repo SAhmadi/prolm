@@ -14,8 +14,8 @@ never reuse a number, even after an issue is closed.
 |-----------|----------------------------------|---------|
 | BUG       | Correctness bugs                 | BUG-012 |
 | SEC       | Security issues                  | SEC-017 |
-| DRY       | Code duplication / DRY violation | DRY-003 |
-| QUALITY   | Code quality / tech debt         | QUALITY-018 |
+| DRY       | Code duplication / DRY violation | DRY-004 |
+| QUALITY   | Code quality / tech debt         | QUALITY-019 |
 | ERR       | Error handling issues            | ERR-003 |
 
 ---
@@ -25,4 +25,6 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
+| QUALITY-018 | Medium | [QUALITY-018 — prolm run does not yet execute named [scripts] entries](https://github.com/SAhmadi/prolm/issues/18) | Phase 2 |
+| DRY-003     | Low    | [DRY-003 — manifest discover+load boilerplate duplicated across cmd/](https://github.com/SAhmadi/prolm/issues/19) | Phase 1 |
 
