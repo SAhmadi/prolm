@@ -7,7 +7,6 @@ import (
 
 	"github.com/prolm/prolm/internal/installer"
 	"github.com/prolm/prolm/internal/lockfile"
-	"github.com/prolm/prolm/internal/manifest"
 	"github.com/prolm/prolm/internal/runtime"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -62,20 +61,10 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 		prologArgs = args[dashAt:]
 	}
 
-	// Resolve manifest (mirrors cmd/install.go discover-or-explicit pattern).
-	configPath, _ := cmd.Flags().GetString("config")
-	manifestPath := configPath
-	if manifestPath == "" {
-		discovered, err := manifest.Discover("")
-		if err != nil {
-			return fmt.Errorf("discovering Prolfile.toml: %w", err)
-		}
-		manifestPath = discovered
-	}
-
-	pf, err := manifest.Load(manifestPath, manifest.LoadOptions{ProlmVersion: Version})
+	// Resolve manifest via shared helper (DRY-003).
+	pf, manifestPath, err := loadManifest(cmd)
 	if err != nil {
-		return fmt.Errorf("reading Prolfile.toml: %w", err)
+		return err
 	}
 
 	// Resolve lockfile. nil lock => first install hasn't happened yet.
@@ -86,7 +75,7 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 	}
 	if lock == nil {
 		ui.Hint("Run `prolm install` first to download dependencies")
-		return fmt.Errorf("Prolfile.lock not found at %s", lockPath)
+		return fmt.Errorf("prolfile.lock not found at %s", lockPath)
 	}
 
 	// Verify every locked package exists in the local store.
@@ -100,11 +89,13 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 		depPaths = append(depPaths, store.PackPath(pkg.Name, pkg.Version))
 	}
 
-	// Resolve entry point.
-	entry, err := resolveRunEntry(pf, manifestPath, entryArgs)
+	// Resolve entry point (and any prolog args embedded in a [scripts] value).
+	entry, scriptPrologArgs, err := resolveRunEntry(pf, manifestPath, entryArgs)
 	if err != nil {
 		return err
 	}
+	// Script prolog args come first so that explicit user args (after --) win.
+	prologArgs = append(scriptPrologArgs, prologArgs...)
 
 	// Pick runtime: --runtime flag > [package].runtime > factory default.
 	runtimeName, _ := cmd.Flags().GetString("runtime")
@@ -113,16 +104,16 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 	}
 	rt, err := r.newRuntime(runtimeName)
 	if err != nil {
-		return err
+		return fmt.Errorf("selecting runtime %q: %w", runtimeName, err)
 	}
 	info, err := rt.Detect()
 	if err != nil {
-		return err
+		return fmt.Errorf("detecting %s runtime: %w", rt.Name(), err)
 	}
 	if pf.Runtime != nil {
 		if cfg, ok := pf.Runtime[rt.Name()]; ok && cfg.MinVersion != "" {
 			if err := runtime.CheckMinVersion(info, rt.Name(), cfg.MinVersion); err != nil {
-				return err
+				return fmt.Errorf("checking runtime version: %w", err)
 			}
 		}
 	}
@@ -139,34 +130,98 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 	rtArgs := rt.BuildRunArgs(entry, depPaths, flags, goal)
 	rtArgs = append(rtArgs, prologArgs...)
 
-	return rt.Exec(rtArgs)
+	if err := rt.Exec(rtArgs); err != nil {
+		return fmt.Errorf("executing %s: %w", rt.Name(), err)
+	}
+	return nil
 }
 
-// resolveRunEntry picks the entry point file to load.
+// resolveRunEntry picks the entry point file to load and any extra Prolog args
+// that come from a [scripts] entry. The third return value is non-nil only when
+// a named script with embedded "-- <args>" is resolved.
 //
 // Precedence:
 //  1. No positional args => [package].entry from Prolfile.toml.
-//  2. First positional arg is a path to a .pl file => use it.
-//
-// Named [scripts] entries are NOT yet supported (tracked as QUALITY-018);
-// script values are free-text shell commands and require a small command
-// parser/runner that is out of scope for sub-phase 1.11.
-func resolveRunEntry(pf *prolfile.ProlFile, manifestPath string, args []string) (string, error) {
+//  2. First positional arg matches a [scripts] key => parse as "prolm run <entry> [-- <args>]".
+//  3. First positional arg is a path to a .pl file => use it directly.
+func resolveRunEntry(pf *prolfile.ProlFile, manifestPath string, args []string) (entry string, scriptPrologArgs []string, err error) {
 	if len(args) == 0 {
-		entry := pf.Package.Entry
-		if entry == "" {
-			return "", fmt.Errorf("no entry point: pass a .pl file or set [package].entry in Prolfile.toml")
+		e := pf.Package.Entry
+		if e == "" {
+			return "", nil, fmt.Errorf("no entry point: pass a .pl file or set [package].entry in Prolfile.toml")
 		}
-		return resolveEntryPath(manifestPath, entry)
+		resolved, err := resolveEntryPath(manifestPath, e)
+		return resolved, nil, err
 	}
 
 	first := args[0]
 	if pf.Scripts != nil {
-		if _, ok := pf.Scripts[first]; ok {
-			return "", fmt.Errorf("running named [scripts] entries is not yet supported (Phase 2)")
+		if scriptVal, ok := pf.Scripts[first]; ok {
+			return resolveScriptEntry(manifestPath, first, scriptVal)
 		}
 	}
-	return resolveEntryPath(manifestPath, first)
+	resolved, err := resolveEntryPath(manifestPath, first)
+	return resolved, nil, err
+}
+
+// resolveScriptEntry parses a [scripts] value of the form
+// "prolm run <entry> [-- <prolog-args>...]" and returns the resolved entry
+// path together with any Prolog args after the "--" separator.
+//
+// Only "prolm run ..." script values are supported. Any other format is
+// rejected with a clear error so users understand the expected syntax.
+func resolveScriptEntry(manifestPath, scriptName, scriptVal string) (string, []string, error) {
+	// Tokenise by splitting on spaces; we do not need full shell quoting
+	// because Prolfile.toml script values follow a controlled syntax.
+	tokens := splitScriptTokens(scriptVal)
+
+	// Expect: "prolm" "run" <entry> [-- <prolog-args>...]
+	if len(tokens) < 3 || tokens[0] != "prolm" || tokens[1] != "run" {
+		return "", nil, fmt.Errorf(
+			"script %q value %q is not in the expected format: must start with \"prolm run <entry>\"",
+			scriptName, scriptVal,
+		)
+	}
+
+	entryToken := tokens[2]
+	rest := tokens[3:]
+
+	// Find "--" separator if present.
+	var scriptPrologArgs []string
+	for i, tok := range rest {
+		if tok == "--" {
+			scriptPrologArgs = rest[i+1:]
+			break
+		}
+	}
+
+	resolved, err := resolveEntryPath(manifestPath, entryToken)
+	if err != nil {
+		return "", nil, err
+	}
+	return resolved, scriptPrologArgs, nil
+}
+
+// splitScriptTokens splits a script string on whitespace runs. This is
+// intentionally simple: Prolfile.toml scripts follow a restricted syntax
+// ("prolm run <entry> [-- args...]") that does not require shell quoting.
+func splitScriptTokens(s string) []string {
+	var tokens []string
+	start := -1
+	for i := 0; i <= len(s); i++ {
+		isSpace := i == len(s) || s[i] == ' ' || s[i] == '\t'
+		if isSpace {
+			if start >= 0 {
+				tokens = append(tokens, s[start:i])
+				start = -1
+			}
+		} else {
+			if start < 0 {
+				start = i
+			}
+		}
+	}
+	return tokens
 }
 
 // resolveEntryPath resolves an entry path relative to the manifest directory

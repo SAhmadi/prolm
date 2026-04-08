@@ -25,8 +25,4 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
-| QUALITY-018 | Medium | [QUALITY-018 — prolm run does not yet execute named [scripts] entries](https://github.com/SAhmadi/prolm/issues/18) | Phase 2 |
-| DRY-003     | Low    | [DRY-003 — manifest discover+load boilerplate duplicated across cmd/](https://github.com/SAhmadi/prolm/issues/19) | Phase 1 |
-| QUALITY-019 | Medium | [QUALITY-019 — cmd/run.go:89 capitalized error string (ST1005) fails staticcheck CI](https://github.com/SAhmadi/prolm/issues/21) | Phase 1 |
-| ERR-003     | Low    | [ERR-003 — cmd/run.go bubbles runtime errors without context wrapping](https://github.com/SAhmadi/prolm/issues/22) | Phase 1 |
 

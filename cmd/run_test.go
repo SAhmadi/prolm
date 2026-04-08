@@ -159,7 +159,7 @@ runtime = "swi"
 	rootCmd.SetArgs([]string{"run"})
 	err := Execute()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Prolfile.lock not found")
+	assert.Contains(t, err.Error(), "prolfile.lock not found")
 }
 
 func TestExecute_Run_DepNotInstalled(t *testing.T) {
@@ -260,23 +260,84 @@ func TestExecute_Run_RuntimeNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "swipl not found")
 }
 
-func TestExecute_Run_ScriptNameNotSupported(t *testing.T) {
+func TestExecute_Run_ScriptEntry(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	storeDir := filepath.Join(dir, "store")
 	writeRunProject(t, dir, storeDir)
-	// Append a [scripts] section.
+	// Append a [scripts] section referencing src/main.pl (already exists).
 	manifestPath := filepath.Join(dir, "Prolfile.toml")
 	body, err := os.ReadFile(manifestPath)
 	require.NoError(t, err)
 	body = append(body, []byte("\n[scripts]\nstart = \"prolm run src/main.pl\"\n")...)
 	require.NoError(t, os.WriteFile(manifestPath, body, 0644))
 
-	withTestRunRunner(t, newFakeRunner(storeDir, &fakeRuntime{}))
+	fr := &fakeRuntime{}
+	withTestRunRunner(t, newFakeRunner(storeDir, fr))
 	resetRunCmd(t)
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"run", "start"})
+	require.NoError(t, Execute())
+	assert.Equal(t, filepath.Join(dir, "src", "main.pl"), fr.gotRunEntry)
+}
+
+func TestExecute_Run_ScriptEntryWithPrologArgs(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	storeDir := filepath.Join(dir, "store")
+	writeRunProject(t, dir, storeDir)
+	// Script includes -- args forwarded to Prolog.
+	manifestPath := filepath.Join(dir, "Prolfile.toml")
+	body, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+	body = append(body, []byte("\n[scripts]\ndiagnose = \"prolm run src/main.pl -- --mode interactive\"\n")...)
+	require.NoError(t, os.WriteFile(manifestPath, body, 0644))
+
+	fr := &fakeRuntime{}
+	withTestRunRunner(t, newFakeRunner(storeDir, fr))
+	resetRunCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"run", "diagnose"})
+	require.NoError(t, Execute())
+	assert.Equal(t, filepath.Join(dir, "src", "main.pl"), fr.gotRunEntry)
+	// Prolog args from the script must be forwarded.
+	require.GreaterOrEqual(t, len(fr.gotExecArgs), 2)
+	assert.Equal(t, []string{"--mode", "interactive"}, fr.gotExecArgs[len(fr.gotExecArgs)-2:])
+}
+
+func TestExecute_Run_ScriptUnknownFormat(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	storeDir := filepath.Join(dir, "store")
+	writeRunProject(t, dir, storeDir)
+	// Script value is not a "prolm run ..." invocation.
+	manifestPath := filepath.Join(dir, "Prolfile.toml")
+	body, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+	body = append(body, []byte("\n[scripts]\nbuild = \"echo hello\"\n")...)
+	require.NoError(t, os.WriteFile(manifestPath, body, 0644))
+
+	withTestRunRunner(t, newFakeRunner(storeDir, &fakeRuntime{}))
+	resetRunCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"run", "build"})
 	err = Execute()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "scripts")
+	assert.Contains(t, err.Error(), "build")
+	assert.Contains(t, err.Error(), "prolm run")
+}
+
+func TestExecute_Run_UnknownScript(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	storeDir := filepath.Join(dir, "store")
+	writeRunProject(t, dir, storeDir)
+	// No [scripts] section at all; positional arg doesn't match a .pl file.
+	withTestRunRunner(t, newFakeRunner(storeDir, &fakeRuntime{}))
+	resetRunCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"run", "nonexistent"})
+	err := Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }
