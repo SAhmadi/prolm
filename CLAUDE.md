@@ -19,7 +19,7 @@
 8. [Package Manager Challenges](#8-package-manager-challenges)
 9. [Security Rules — Non-Negotiable](#9-security-rules--non-negotiable)
 10. [Go + Cobra + Viper Conventions](#10-go--cobra--viper-conventions)
-11. [Testing Strategy](#11-testing-strategy)
+11. [Testing Strategy](TESTING.md)
 12. [Open Decisions & Future Work](#12-open-decisions--future-work)
 
 ---
@@ -1909,83 +1909,18 @@ var resolveTests = []struct {
 
 ## 11. Testing Strategy
 
-| Layer              | Type               | Location                             |
-|--------------------|--------------------|--------------------------------------|
-| Manifest parsing   | Unit               | `internal/manifest/manifest_test.go` |
-| Semver constraints | Unit + fuzz        | `internal/resolver/semver_test.go`   |
-| MVS resolution     | Unit (table-driven)| `internal/resolver/resolver_test.go` |
-| Checksum verify    | Unit               | `internal/installer/verify_test.go`  |
-| Path traversal     | Unit (adversarial) | `internal/installer/unpack_test.go`  |
-| Runtime detection  | Unit               | `internal/runtime/runtime_test.go`   |
-| Full install flow  | Integration        | `testdata/` fixtures                 |
-| CLI commands       | Integration        | Subprocess tests via `os/exec`       |
+See **[TESTING.md](TESTING.md)** for the full testing reference: unit tests, integration
+tests, adversarial security tests, fuzz targets, runtime compatibility matrix, test
+writing conventions, and instructions for running CI locally.
 
-**Fuzz targets (critical):**
-- `internal/resolver` — fuzz with random version constraint strings
-- `internal/installer/unpack.go` — fuzz with crafted tarball paths
+**Always run `make ci` locally before opening a Pull Request.** This mirrors the GitHub
+Actions workflow exactly (`go vet` → `staticcheck` → `go test -race -count=1`) and
+catches failures — including staticcheck issues that have broken CI in the past — before
+they reach the remote.
 
-**CI must run:**
 ```bash
-go test ./...                          # all unit tests
-go test -race ./...                    # race detector (concurrent install)
-go vet ./...
-staticcheck ./...
+make ci   # vet + staticcheck + test -race — run this before every PR
 ```
-
----
-
-### 11.1 Adversarial Testing
-
-All security-critical code paths must have adversarial test cases that
-verify correct rejection of hostile inputs. These are not optional.
-
-| Attack vector                | Test location                          | Examples                                           |
-|------------------------------|----------------------------------------|----------------------------------------------------|
-| Path traversal tarballs      | `internal/installer/unpack_test.go`    | `../../.bashrc`, `/etc/passwd`, `foo/../../../bar`  |
-| Symlink escape               | `internal/installer/unpack_test.go`    | Symlink to `/etc/shadow`, chained symlinks          |
-| Oversized archives           | `internal/installer/unpack_test.go`    | 1GB decompressed from 1KB (tar bomb)                |
-| Excessive file count         | `internal/installer/unpack_test.go`    | Tarball with 100,000 empty files                    |
-| Invalid filenames            | `internal/installer/unpack_test.go`    | NULL bytes, UTF-8 edge cases, trailing dots/spaces  |
-| Device files / named pipes   | `internal/installer/unpack_test.go`    | Block device, char device, FIFO entries in tar      |
-| Malformed TOML               | `internal/manifest/manifest_test.go`   | Missing required fields, invalid types, huge values |
-| Malformed registry responses | `internal/registry/*_test.go`          | Invalid JSON, missing fields, injection attempts    |
-| Conflicted lockfile          | `internal/lockfile/lockfile_test.go`   | Git conflict markers in TOML                        |
-| Checksum mismatch            | `internal/installer/verify_test.go`    | Truncated file, bit-flipped content                 |
-
-**Fuzz targets (critical):**
-- `internal/resolver` — fuzz with random version constraint strings
-- `internal/installer/unpack.go` — fuzz with crafted tarball entry paths
-- `internal/manifest` — fuzz with malformed TOML input
-- `internal/lockfile` — fuzz with corrupted lockfile content
-
----
-
-### 11.2 Runtime Compatibility Testing
-
-CI should test across multiple Prolog implementations and OS combinations
-to catch runtime-specific incompatibilities early.
-
-**CI matrix (Phase 2+):**
-
-| Runtime       | Versions     | OS            |
-|---------------|-------------|---------------|
-| SWI-Prolog    | 9.0, 9.2, latest | Linux, macOS |
-| GNU Prolog    | 1.5, latest      | Linux, macOS |
-| Scryer Prolog | 0.9, latest      | Linux, macOS |
-| (Windows)     | SWI only         | Windows (Phase 4) |
-
-**What to test per runtime:**
-- `prolm run` — entry point invocation, argument passing
-- `prolm test` — PlUnit discovery and output parsing
-- `prolm check` — static analysis warnings/errors
-- `prolm repl` — interactive session startup
-- Module loading — `use_module` syntax differences across runtimes
-- Flag compatibility — runtime-specific flags in `[runtime.*]`
-
-**Implementation:**
-- Use GitHub Actions matrix strategy
-- Cache Prolog runtime installs (swipl is ~200MB compiled)
-- Integration tests in `testdata/` should be runtime-portable where possible
 
 ---
 

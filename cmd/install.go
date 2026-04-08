@@ -9,7 +9,6 @@ import (
 
 	"github.com/prolm/prolm/internal/installer"
 	"github.com/prolm/prolm/internal/lockfile"
-	"github.com/prolm/prolm/internal/manifest"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/spf13/cobra"
@@ -67,21 +66,9 @@ func (r *installRunner) run(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	configPath, _ := cmd.Flags().GetString("config")
-
-	// Resolve the manifest path first so we can place Prolfile.lock beside it.
-	manifestPath := configPath
-	if manifestPath == "" {
-		discovered, err := manifest.Discover("")
-		if err != nil {
-			return fmt.Errorf("discovering Prolfile.toml: %w", err)
-		}
-		manifestPath = discovered
-	}
-
-	pf, err := manifest.Load(manifestPath, manifest.LoadOptions{ProlmVersion: Version})
+	pf, manifestPath, err := loadManifest(cmd)
 	if err != nil {
-		return fmt.Errorf("reading Prolfile.toml: %w", err)
+		return err
 	}
 
 	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
