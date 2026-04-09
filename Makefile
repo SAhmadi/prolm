@@ -15,9 +15,11 @@ test-race:
 vet:
 	go vet ./...
 
+STATICCHECK := $(shell command -v staticcheck 2>/dev/null || echo $(shell go env GOPATH)/bin/staticcheck)
+
 lint:
-	@which staticcheck > /dev/null 2>&1 || (echo "staticcheck not found — run: go install honnef.co/go/tools/cmd/staticcheck@latest" && exit 1)
-	staticcheck ./...
+	@test -x "$(STATICCHECK)" || (echo "staticcheck not found — run: go install honnef.co/go/tools/cmd/staticcheck@latest" && exit 1)
+	$(STATICCHECK) ./...
 
 # ci mirrors the GitHub Actions workflow exactly — run this before opening a PR
 ci: vet lint test-race

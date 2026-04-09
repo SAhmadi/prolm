@@ -29,7 +29,8 @@ type Runtime interface {
 	BuildTestArgs(testFiles []string, deps []string, flags []string) []string
 
 	// BuildCheckArgs assembles arguments for prolm check (static analysis).
-	BuildCheckArgs(files []string, deps []string) []string
+	// flags are runtime flags from [runtime.*].flags in Prolfile.toml.
+	BuildCheckArgs(files []string, deps []string, flags []string) []string
 
 	// Exec replaces the current process with the runtime binary (syscall.Exec).
 	// Detect must be called first.

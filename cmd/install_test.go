@@ -99,6 +99,16 @@ func resetRootCmd(t *testing.T) *bytes.Buffer {
 	installCmd.Flags().Bool("offline", false, "[Phase 2] Use local cache only, no network requests (not yet implemented)")
 	installCmd.Flags().Bool("no-verify", false, "[Phase 2] Skip checksum verification — DANGEROUS, dev only (not yet implemented)")
 
+	// Reset rootCmd persistent flags so a --config (or other persistent flag)
+	// set in one test does not bleed into subsequent tests. Cobra's flag Changed
+	// state persists across Execute() calls within the same binary run.
+	rootCmd.ResetFlags()
+	rootCmd.PersistentFlags().String("config", "", "path to Prolfile.toml (default: auto-discover upward)")
+	rootCmd.PersistentFlags().String("runtime", "", "override runtime: swi | gnu | scryer")
+	rootCmd.PersistentFlags().Bool("verbose", false, "enable verbose/debug output")
+	rootCmd.PersistentFlags().Bool("no-color", false, "disable colour output (also respects NO_COLOR env var)")
+	rootCmd.PersistentFlags().Bool("json", false, "machine-readable JSON output")
+
 	t.Cleanup(func() {
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)

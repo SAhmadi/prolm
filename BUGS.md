@@ -12,11 +12,11 @@ never reuse a number, even after an issue is closed.
 
 | Prefix    | Meaning                          | Next ID |
 |-----------|----------------------------------|---------|
-| BUG       | Correctness bugs                 | BUG-014 |
-| SEC       | Security issues                  | SEC-017 |
-| DRY       | Code duplication / DRY violation | DRY-005 |
-| QUALITY   | Code quality / tech debt         | QUALITY-023 |
-| ERR       | Error handling issues            | ERR-004 |
+| BUG       | Correctness bugs                 | BUG-017 |
+| SEC       | Security issues                  | SEC-018 |
+| DRY       | Code duplication / DRY violation | DRY-006 |
+| QUALITY   | Code quality / tech debt         | QUALITY-027 |
+| ERR       | Error handling issues            | ERR-005 |
 
 ---
 
@@ -25,4 +25,3 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
-

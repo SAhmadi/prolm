@@ -21,6 +21,8 @@ type fakeRuntime struct {
 	gotRunGoal  string
 	gotExecArgs []string
 	execErr     error
+	// BUG-015: hook to inspect flags forwarded to BuildCheckArgs.
+	buildCheckArgsHook func(files, deps, flags []string) []string
 }
 
 func (f *fakeRuntime) Name() string { return f.name }
@@ -40,8 +42,13 @@ func (f *fakeRuntime) BuildRunArgs(entry string, deps, flags []string, goal stri
 	f.gotRunGoal = goal
 	return []string{"BUILT", entry, goal}
 }
-func (f *fakeRuntime) BuildTestArgs(_, _, _ []string) []string  { return nil }
-func (f *fakeRuntime) BuildCheckArgs(_, _ []string) []string    { return nil }
+func (f *fakeRuntime) BuildTestArgs(_, _, _ []string) []string { return nil }
+func (f *fakeRuntime) BuildCheckArgs(files, deps, flags []string) []string {
+	if f.buildCheckArgsHook != nil {
+		return f.buildCheckArgsHook(files, deps, flags)
+	}
+	return nil
+}
 func (f *fakeRuntime) Exec(args []string) error {
 	f.gotExecArgs = append([]string(nil), args...)
 	return f.execErr
