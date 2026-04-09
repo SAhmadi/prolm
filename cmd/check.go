@@ -31,6 +31,16 @@ var checkCmd = &cobra.Command{
 capturing and reporting warnings such as undefined predicates, singleton variables,
 missing imports, and missing module declarations.
 
+TRUST BOUNDARY: prolm check invokes the Prolog runtime, which executes
+initialization directives (:- initialization/1), term_expansion/2, and
+goal_expansion/2 hooks present in the project source and its locked
+dependencies. It does NOT sandbox execution. Only run prolm check on
+projects and dependencies you trust. See CLAUDE.md §8.15 and §8.22.
+
+Use --no-deps to analyse only the project source files without loading
+dependency modules (reduces execution scope at the cost of cross-module
+analysis).
+
 By default, warnings do not cause failure. Use --strict to treat warnings as errors.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return defaultCheckCmdRunner.run(cmd, args)
@@ -40,6 +50,7 @@ By default, warnings do not cause failure. Use --strict to treat warnings as err
 func init() {
 	rootCmd.AddCommand(checkCmd)
 	checkCmd.Flags().Bool("strict", false, "Treat warnings as errors")
+	checkCmd.Flags().Bool("no-deps", false, "Analyse project source only; do not load dependency modules")
 }
 
 func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
@@ -48,9 +59,14 @@ func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	noDeps, _ := cmd.Flags().GetBool("no-deps")
+
 	depPaths, err := verifyStoreDeps(manifestPath, r.storeDir)
 	if err != nil {
 		return err
+	}
+	if noDeps {
+		depPaths = nil
 	}
 
 	// Runtime: --runtime flag > [package].runtime > factory default.
@@ -93,54 +109,18 @@ func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Report diagnostics.
-	reportCheck(res, viper.GetBool("json"))
-
-	// Determine exit code.
 	strict, _ := cmd.Flags().GetBool("strict")
-	if len(res.Errors()) > 0 {
-		return fmt.Errorf("%d error(s) found", len(res.Errors()))
+	opts := checker.ReportOptions{
+		Strict:  strict,
+		JSON:    viper.GetBool("json"),
+		NoColor: viper.GetBool("no-color"),
 	}
-	if strict && len(res.Warnings()) > 0 {
+	failing := checker.Report(res, ui.Out, opts)
+	if failing {
+		if len(res.Errors()) > 0 {
+			return fmt.Errorf("%d error(s) found", len(res.Errors()))
+		}
 		return fmt.Errorf("%d warning(s) found (--strict mode)", len(res.Warnings()))
 	}
-
 	return nil
-}
-
-// reportCheck formats and prints check output.
-func reportCheck(res *checker.CheckResult, jsonMode bool) {
-	if jsonMode {
-		// JSON output: emit the full CheckResult.
-		fmt.Fprintf(ui.Out, "{\"diagnostics\":[")
-		for i, d := range res.Diagnostics {
-			if i > 0 {
-				fmt.Fprint(ui.Out, ",")
-			}
-			fmt.Fprintf(ui.Out, "{\"severity\":%q,\"file\":%q,\"line\":%d,\"col\":%d,\"message\":%q}",
-				d.Severity, d.File, d.Line, d.Col, d.Message)
-		}
-		fmt.Fprintf(ui.Out, "]}\n")
-		return
-	}
-
-	// Text output: print each diagnostic with colour.
-	warnings := res.Warnings()
-	errors := res.Errors()
-
-	for _, d := range errors {
-		ui.Error("%s:%d:%d: %s", d.File, d.Line, d.Col, d.Message)
-	}
-	for _, d := range warnings {
-		ui.Warn("%s:%d:%d: %s", d.File, d.Line, d.Col, d.Message)
-	}
-
-	// Summary.
-	if len(errors) == 0 && len(warnings) == 0 {
-		ui.Success("No issues found")
-	} else if len(errors) > 0 {
-		ui.Error("%d error(s), %d warning(s)", len(errors), len(warnings))
-	} else {
-		ui.Info("%d warning(s)", len(warnings))
-	}
 }
