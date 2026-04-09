@@ -2,6 +2,8 @@ package checker
 
 import (
 	"context"
+	"fmt"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -9,6 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// realExitError runs "false" (or equivalent) and returns the *exec.ExitError it
+// produces. Used to simulate swipl exiting non-zero without being a spawn failure.
+func realExitError(t *testing.T) error {
+	t.Helper()
+	err := exec.Command("false").Run()
+	require.Error(t, err, "exec false must fail")
+	return err
+}
 
 type fakeRT struct {
 	name string
@@ -99,5 +110,44 @@ func TestChecker_ToleratesNonZeroExit(t *testing.T) {
 	}
 	res, err := c.Check(context.Background(), "/fake/swipl", []string{"src/main.pl"}, nil, &fakeRT{}, Options{})
 	require.NoError(t, err)
+	assert.Equal(t, 1, len(res.Diagnostics))
+}
+
+// ERR-004: spawn failures must not produce a false-clean result.
+
+func TestChecker_SpawnError_ReturnsError(t *testing.T) {
+	spawnErr := fmt.Errorf("fork/exec /fake/swipl: no such file or directory")
+	c := &Checker{
+		Exec: func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			return nil, nil, spawnErr
+		},
+	}
+	_, err := c.Check(context.Background(), "/fake/swipl", []string{"src/main.pl"}, nil, &fakeRT{}, Options{})
+	require.Error(t, err, "spawn error must not be swallowed")
+	assert.Contains(t, err.Error(), "/fake/swipl")
+}
+
+func TestChecker_ContextDeadline_ReturnsError(t *testing.T) {
+	c := &Checker{
+		Exec: func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			return nil, nil, context.DeadlineExceeded
+		},
+	}
+	_, err := c.Check(context.Background(), "/fake/swipl", []string{"src/main.pl"}, nil, &fakeRT{}, Options{Timeout: 1 * time.Second})
+	require.Error(t, err, "deadline exceeded must not be swallowed")
+	assert.Contains(t, err.Error(), "timed out")
+}
+
+func TestChecker_ExitError_WithDiagnostics_Tolerated(t *testing.T) {
+	// swipl exits non-zero when it finds warnings/errors — that is normal and
+	// must be tolerated. Only spawn-level errors propagate.
+	exitErr := realExitError(t)
+	c := &Checker{
+		Exec: func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			return []byte("Warning: /path/file.pl:10:5: Singleton 'X'\n"), nil, exitErr
+		},
+	}
+	res, err := c.Check(context.Background(), "/fake/swipl", []string{"src/main.pl"}, nil, &fakeRT{}, Options{})
+	require.NoError(t, err, "ExitError from swipl must be tolerated")
 	assert.Equal(t, 1, len(res.Diagnostics))
 }

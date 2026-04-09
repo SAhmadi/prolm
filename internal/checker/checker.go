@@ -3,6 +3,8 @@ package checker
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os/exec"
 	"time"
 
@@ -74,6 +76,15 @@ func (c *Checker) Check(
 		execFn = DefaultExec
 	}
 
-	stdout, stderr, _ := execFn(ctx, binary, args...)
+	stdout, stderr, runErr := execFn(ctx, binary, args...)
+	if errors.Is(runErr, context.DeadlineExceeded) {
+		return nil, fmt.Errorf("check timed out after %s", timeout)
+	}
+	var exitErr *exec.ExitError
+	if runErr != nil && !errors.As(runErr, &exitErr) {
+		// Spawn-level failure (binary not found, permission denied, etc.) —
+		// not a normal swipl exit; surface it rather than returning a false clean.
+		return nil, fmt.Errorf("running %s: %w", binary, runErr)
+	}
 	return Parse(string(stdout), string(stderr)), nil
 }
