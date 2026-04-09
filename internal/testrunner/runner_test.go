@@ -25,7 +25,7 @@ func (f *fakeRT) BuildTestArgs(files, deps, flags []string) []string {
 	f.gotFlags = flags
 	return []string{"-g", "run_tests", "-t", "halt"}
 }
-func (f *fakeRT) BuildCheckArgs([]string, []string) []string { return nil }
+func (f *fakeRT) BuildCheckArgs([]string, []string, []string) []string { return nil }
 func (f *fakeRT) Exec([]string) error                        { return nil }
 
 func TestRunner_NoFiles_NoExec(t *testing.T) {

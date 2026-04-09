@@ -31,13 +31,14 @@ func (f *fakeRT) Detect() (*runtime.RuntimeInfo, error) {
 }
 func (f *fakeRT) BuildRunArgs(_ string, _ []string, _ []string, _ string) []string { return nil }
 func (f *fakeRT) BuildTestArgs(_, _, _ []string) []string { return nil }
-func (f *fakeRT) BuildCheckArgs(files, deps []string) []string {
+func (f *fakeRT) BuildCheckArgs(files, deps, flags []string) []string {
 	var args []string
+	args = append(args, flags...)
 	for _, d := range deps {
 		args = append(args, "-g", "use_module('"+d+"')")
 	}
 	for _, file := range files {
-		args = append(args, "-g", "load_files('"+file+"')")
+		args = append(args, "-g", fmt.Sprintf("load_files(['%s'],[if(true),autoload(false)])", file))
 	}
 	args = append(args, "-t", "halt")
 	return args
@@ -67,7 +68,7 @@ func TestChecker_InvokesRuntime(t *testing.T) {
 	res, err := c.Check(context.Background(), "/fake/swipl", []string{"src/main.pl"}, []string{"deps/lib"}, rt, Options{})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(res.Diagnostics))
-	assert.Contains(t, gotArgs, "load_files('src/main.pl')")
+	assert.Contains(t, gotArgs, "load_files(['src/main.pl'],[if(true),autoload(false)])")
 	assert.Contains(t, gotArgs, "use_module('deps/lib')")
 }
 

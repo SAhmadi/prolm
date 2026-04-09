@@ -365,53 +365,81 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 func TestSWIRuntime_BuildCheckArgs(t *testing.T) {
 	s := NewSWIRuntime()
 
+	// BUG-016: load_files/2 with [if(true),autoload(false)] must be used
+	// instead of bare load_files/1 to reduce the initialization execution
+	// surface during static analysis.
+	// BUG-015: flags must be prepended (mirrors BuildTestArgs behaviour).
 	tests := []struct {
-		name string
+		name  string
 		files []string
 		deps  []string
+		flags []string
 		want  []string
 	}{
 		{
-			name:  "single file with dep",
+			name:  "single file with dep, no flags",
 			files: []string{"src/main.pl"},
 			deps:  []string{"dep1"},
+			flags: nil,
 			want: []string{
 				"-g", "use_module('dep1')",
-				"-g", "load_files('src/main.pl')",
+				"-g", "load_files(['src/main.pl'],[if(true),autoload(false)])",
 				"-t", "halt",
 			},
 		},
 		{
-			name:  "multiple files no deps",
+			name:  "multiple files no deps no flags",
 			files: []string{"src/a.pl", "src/b.pl"},
 			deps:  nil,
+			flags: nil,
 			want: []string{
-				"-g", "load_files('src/a.pl')",
-				"-g", "load_files('src/b.pl')",
+				"-g", "load_files(['src/a.pl'],[if(true),autoload(false)])",
+				"-g", "load_files(['src/b.pl'],[if(true),autoload(false)])",
 				"-t", "halt",
 			},
 		},
 		{
-			name:  "no files no deps",
+			name:  "no files no deps no flags",
 			files: nil,
 			deps:  nil,
+			flags: nil,
 			want:  []string{"-t", "halt"},
 		},
 		{
 			name:  "single quote in file and dep path",
 			files: []string{"/home/o'brien/src/main.pl"},
 			deps:  []string{"/store/o'clock/1.0"},
+			flags: nil,
 			want: []string{
 				"-g", "use_module('/store/o''clock/1.0')",
-				"-g", "load_files('/home/o''brien/src/main.pl')",
+				"-g", "load_files(['/home/o''brien/src/main.pl'],[if(true),autoload(false)])",
 				"-t", "halt",
 			},
+		},
+		{
+			name:  "BUG-015: flags are prepended before deps and files",
+			files: []string{"src/main.pl"},
+			deps:  []string{"dep1"},
+			flags: []string{"-O", "--stack-limit=2g"},
+			want: []string{
+				"-O", "--stack-limit=2g",
+				"-g", "use_module('dep1')",
+				"-g", "load_files(['src/main.pl'],[if(true),autoload(false)])",
+				"-t", "halt",
+			},
+		},
+		{
+			name:  "flags only, no files",
+			files: nil,
+			deps:  nil,
+			flags: []string{"-O"},
+			want:  []string{"-O", "-t", "halt"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := s.BuildCheckArgs(tt.files, tt.deps)
+			got := s.BuildCheckArgs(tt.files, tt.deps, tt.flags)
 			assert.Equal(t, tt.want, got)
 		})
 	}

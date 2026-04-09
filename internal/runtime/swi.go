@@ -179,16 +179,26 @@ func (s *SWIRuntime) BuildTestArgs(testFiles []string, deps []string, flags []st
 
 // BuildCheckArgs assembles swipl arguments for prolm check (static analysis).
 //
-// Result: [-g "use_module('dep')" ...] [-g "load_files('file')" ...] -t halt
-func (s *SWIRuntime) BuildCheckArgs(files []string, deps []string) []string {
+// BUG-015: flags from [runtime.swi].flags are prepended (mirrors BuildTestArgs).
+// BUG-016: load_files/2 is used with [if(true),autoload(false)] instead of
+// bare load_files/1. The autoload(false) option prevents swipl from
+// auto-loading undefined predicates during the analysis pass, which reduces
+// the execution surface. Note: :- initialization(Goal) directives present in
+// the loaded source are still executed by swipl; this is an inherent
+// limitation of SWI-Prolog's load mechanism documented in CLAUDE.md §8.15.
+//
+// Result: [flags...] [-g "use_module('dep')" ...] [-g "load_files(['file'],[if(true),autoload(false)])" ...] -t halt
+func (s *SWIRuntime) BuildCheckArgs(files []string, deps []string, flags []string) []string {
 	var args []string
+
+	args = append(args, flags...)
 
 	for _, dep := range deps {
 		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(dep)))
 	}
 
 	for _, f := range files {
-		args = append(args, "-g", fmt.Sprintf("load_files('%s')", escapePrologAtom(f)))
+		args = append(args, "-g", fmt.Sprintf("load_files(['%s'],[if(true),autoload(false)])", escapePrologAtom(f)))
 	}
 
 	args = append(args, "-t", "halt")
