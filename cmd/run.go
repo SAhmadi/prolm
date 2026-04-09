@@ -65,7 +65,7 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve lockfile and verify every locked package exists in the local store.
-	depPaths, err := verifyStoreDeps(pf, manifestPath, r.storeDir)
+	depPaths, err := verifyStoreDeps(manifestPath, r.storeDir)
 	if err != nil {
 		return err
 	}

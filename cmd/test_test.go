@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/prolm/prolm/internal/runtime"
-	"github.com/prolm/prolm/internal/testrunner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,6 +135,3 @@ func TestExecute_Test_RejectsBadFilter(t *testing.T) {
 	assert.Contains(t, err.Error(), "filter")
 }
 
-// Silence unused-import warning from testrunner in case the package is
-// referenced only via type aliases above.
-var _ = testrunner.Options{}

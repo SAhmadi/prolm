@@ -24,12 +24,17 @@ type jsonMsg struct {
 	Message string `json:"message"`
 }
 
-// noColor reports whether colour output should be suppressed.
-// Checks both the Viper flag and the raw NO_COLOR env var so that
-// unit tests which bypass Cobra/Viper still behave correctly.
-func noColor() bool {
+// NoColor reports whether colour output should be suppressed.
+// Checks both the Viper --no-color flag and the NO_COLOR env var so that
+// unit tests which bypass Cobra/Viper still behave correctly (DRY-004).
+// Callers outside the ui package (e.g. testrunner reporter) should use this
+// instead of re-implementing the check.
+func NoColor() bool {
 	return viper.GetBool("no-color") || os.Getenv("NO_COLOR") != ""
 }
+
+// noColor is the unexported alias used internally.
+func noColor() bool { return NoColor() }
 
 // jsonMode reports whether --json structured output is active.
 func jsonMode() bool {

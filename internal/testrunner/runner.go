@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/prolm/prolm/internal/runtime"
@@ -89,13 +90,13 @@ func (r *Runner) Run(
 		args = append([]string{"-g", filterGoal}, args...)
 	}
 
-	exec := r.Exec
-	if exec == nil {
-		exec = DefaultExec
+	execFn := r.Exec
+	if execFn == nil {
+		execFn = DefaultExec
 	}
 
 	start := time.Now()
-	stdout, stderr, runErr := exec(ctx, binary, args...)
+	stdout, stderr, runErr := execFn(ctx, binary, args...)
 	res := Parse(string(stdout), string(stderr))
 	res.Duration = time.Since(start)
 
@@ -104,11 +105,20 @@ func (r *Runner) Run(
 	if ctx.Err() == context.DeadlineExceeded {
 		return res, fmt.Errorf("test run timed out after %s", timeout)
 	}
-	// Swallow runErr: non-zero exits are expected on test failure. If there
-	// were no parsed results and there IS an exec error, surface it so the
-	// user sees the underlying problem instead of a silent "0 tests".
-	if runErr != nil && res.Total == 0 && len(stdout) == 0 && len(stderr) == 0 {
-		return res, fmt.Errorf("running %s: %w", binary, runErr)
+	// Surface runErr when no PlUnit results were parsed (Total==0). This catches
+	// genuine runtime failures (e.g. "Cannot find boot file") that cause swipl
+	// to exit non-zero without emitting any PlUnit output. The captured stderr
+	// is included in the message so the user sees the root cause (BUG-013).
+	//
+	// We intentionally do NOT check len(stdout)==0 or len(stderr)==0 here:
+	// a runtime that writes to stderr then exits non-zero with no PlUnit output
+	// is a hard failure, regardless of whether stderr is empty.
+	if runErr != nil && res.Total == 0 {
+		msg := strings.TrimSpace(string(stderr))
+		if msg == "" {
+			return res, fmt.Errorf("running %s: %w", binary, runErr)
+		}
+		return res, fmt.Errorf("running %s: %w\n%s", binary, runErr, msg)
 	}
 
 	return res, nil
