@@ -310,15 +310,28 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.7*
 
-- [ ] `checker.go` — `Check(projectDir, runtime, deps, strict) (*CheckResult, error)`:
-  - Load `.pl` files via swipl in check mode
-  - Capture warnings: undefined predicates, singleton variables, missing imports, deprecated predicates, missing module declarations
-  - Parse swipl warning output
-  - If `--strict`: treat warnings as errors
-- [ ] `cmd/check.go` — Cobra command with `--strict`
-  - Exit code 1 on errors (or warnings in strict mode)
+- [x] `discover.go` — `Discover(projectDir) ([]string, error)`:
+  - Walk `.pl` files, skip test files and vendor dirs
+  - Return sorted absolute paths
+- [x] `parser.go` — parse swipl diagnostics into structured `CheckResult`:
+  - `Diagnostic` struct: `Severity`, `File`, `Line`, `Col`, `Message`
+  - Extract warnings/errors from stdout+stderr (tolerant parsing)
+  - `CheckResult`: `Diagnostics []Diagnostic`, `Warnings()`, `Errors()` methods
+- [x] `checker.go` — `Check(ctx, binary, srcFiles, depPaths, rt, opts) (*CheckResult, error)`:
+  - Invoke runtime's `BuildCheckArgs()`
+  - Capture swipl output, parse diagnostics
+  - Timeout via context (default 30s)
+- [x] `cmd/check.go` — Cobra command:
+  - Load manifest + verify locked deps
+  - Discover `.pl` files (skip `*_test.pl`)
+  - Invoke checker
+  - Report diagnostics with colour
+  - `--strict` flag: exit 1 on warnings (not just errors)
+  - Exit code 1 on errors or (strict mode + warnings)
+- [x] Unit tests: discovery, parser against sample swipl output, strict mode behaviour
+- [x] Integration test: clean project, project with warnings, `--strict` elevates warnings
 
-**Testing:** Known warning-producing Prolog files. `--strict` elevates warnings. Clean project exits 0.
+**Testing:** Known warning-producing Prolog files. `--strict` elevates warnings. Clean project exits 0. ✓
 
 ### 1.14 — `prolm env` command (`cmd/env.go`)
 

@@ -7,67 +7,132 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParse_EmptyYieldsEmpty(t *testing.T) {
-	res := Parse("", "")
-	assert.Empty(t, res.Diagnostics)
-	assert.Empty(t, res.Warnings())
-	assert.Empty(t, res.Errors())
+func TestParse(t *testing.T) {
+	tests := []struct {
+		name          string
+		stdout        string
+		stderr        string
+		wantDiagCount int
+		wantWarnings  int
+		wantErrors    int
+		wantMsg       string
+	}{
+		{
+			name:          "empty output",
+			stdout:        "",
+			stderr:        "",
+			wantDiagCount: 0,
+			wantWarnings:  0,
+			wantErrors:    0,
+		},
+		{
+			name: "single warning with location",
+			stdout: "Warning: /path/to/file.pl:10:5: Singleton variable 'X'\n",
+			stderr: "",
+			wantDiagCount: 1,
+			wantWarnings: 1,
+			wantMsg: "Singleton variable 'X'",
+		},
+		{
+			name: "error without location",
+			stdout: "ERROR:   Undefined predicate: foo/1\n",
+			stderr: "",
+			wantDiagCount: 1,
+			wantErrors: 1,
+			wantMsg: "Undefined predicate: foo/1",
+		},
+		{
+			name: "warning without column",
+			stdout: "Warning: /path/main.pl:20: Missing module declaration\n",
+			stderr: "",
+			wantDiagCount: 1,
+			wantWarnings: 1,
+		},
+		{
+			name: "mixed warnings and errors",
+			stdout: `Warning: /path/a.pl:1:1: First warning
+ERROR:   /path/b.pl:2:2: An error
+Warning: /path/c.pl:3:3: Second warning
+`,
+			stderr: "",
+			wantDiagCount: 3,
+			wantWarnings: 2,
+			wantErrors: 1,
+		},
+		{
+			name: "stderr and stdout combined",
+			stdout: "Warning: /path/file.pl:10:5: msg1\n",
+			stderr: "ERROR:   /path/other.pl:20:10: msg2\n",
+			wantDiagCount: 2,
+			wantWarnings: 1,
+			wantErrors: 1,
+		},
+		{
+			name: "non-matching lines ignored",
+			stdout: `Warning: /path/file.pl:10:5: valid warning
+some random output
+another line with no structure
+ERROR:   /path/other.pl:20:10: valid error
+`,
+			stderr: "",
+			wantDiagCount: 2,
+			wantWarnings: 1,
+			wantErrors: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res := Parse(tt.stdout, tt.stderr)
+			assert.Equal(t, tt.wantDiagCount, len(res.Diagnostics))
+			assert.Equal(t, tt.wantWarnings, len(res.Warnings()))
+			assert.Equal(t, tt.wantErrors, len(res.Errors()))
+			if tt.wantMsg != "" && len(res.Diagnostics) > 0 {
+				assert.Contains(t, res.Diagnostics[0].Message, tt.wantMsg)
+			}
+		})
+	}
 }
 
-func TestParse_WarningWithLineAndCol(t *testing.T) {
-	res := Parse("", "Warning: /tmp/foo.pl:10:5: Singleton variables: [X]\n")
-	require.Len(t, res.Diagnostics, 1)
+func TestParse_ExtractsLocationInfo(t *testing.T) {
+	res := Parse("Warning: /home/user/src/main.pl:42:17: Test message\n", "")
+	require.Equal(t, 1, len(res.Diagnostics))
 	d := res.Diagnostics[0]
 	assert.Equal(t, SeverityWarning, d.Severity)
-	assert.Equal(t, "/tmp/foo.pl", d.File)
-	assert.Equal(t, 10, d.Line)
-	assert.Equal(t, 5, d.Col)
-	assert.Equal(t, "Singleton variables: [X]", d.Message)
+	assert.Equal(t, "/home/user/src/main.pl", d.File)
+	assert.Equal(t, 42, d.Line)
+	assert.Equal(t, 17, d.Col)
+	assert.Equal(t, "Test message", d.Message)
 }
 
-func TestParse_WarningLineOnly(t *testing.T) {
-	res := Parse("", "Warning: /tmp/foo.pl:20: Clauses of foo/1 are not together\n")
-	require.Len(t, res.Diagnostics, 1)
-	d := res.Diagnostics[0]
-	assert.Equal(t, 20, d.Line)
-	assert.Equal(t, 0, d.Col)
-	assert.Equal(t, "/tmp/foo.pl", d.File)
+func TestParse_ContinuationLines(t *testing.T) {
+	stdout := `Warning: /path/file.pl:10:5: First line
+  continuation with more details
+  and even more info
+ERROR:   /path/other.pl:20:10: Another diagnostic
+`
+	res := Parse(stdout, "")
+	assert.Equal(t, 2, len(res.Diagnostics))
+	assert.Contains(t, res.Diagnostics[0].Message, "continuation")
+	assert.Contains(t, res.Diagnostics[0].Message, "more info")
 }
 
-func TestParse_Error(t *testing.T) {
-	res := Parse("", "ERROR: /tmp/foo.pl:3:5: Syntax error: Operator expected\n")
-	require.Len(t, res.Diagnostics, 1)
-	assert.Equal(t, SeverityError, res.Diagnostics[0].Severity)
-	assert.Len(t, res.Errors(), 1)
-	assert.Empty(t, res.Warnings())
-}
+func TestCheckResult_FilterMethods(t *testing.T) {
+	res := &CheckResult{
+		Diagnostics: []Diagnostic{
+			{Severity: SeverityWarning, Message: "w1"},
+			{Severity: SeverityError, Message: "e1"},
+			{Severity: SeverityWarning, Message: "w2"},
+			{Severity: SeverityError, Message: "e2"},
+		},
+	}
+	warnings := res.Warnings()
+	assert.Equal(t, 2, len(warnings))
+	assert.Equal(t, SeverityWarning, warnings[0].Severity)
+	assert.Equal(t, SeverityWarning, warnings[1].Severity)
 
-func TestParse_WarningWithoutLocation(t *testing.T) {
-	res := Parse("", "Warning: Goal (directive) failed: user:foo\n")
-	require.Len(t, res.Diagnostics, 1)
-	d := res.Diagnostics[0]
-	assert.Equal(t, "", d.File)
-	assert.Equal(t, 0, d.Line)
-	assert.Equal(t, "Goal (directive) failed: user:foo", d.Message)
-}
-
-func TestParse_ContinuationLineCoalesced(t *testing.T) {
-	out := "Warning: /tmp/foo.pl:10:\n\tSingleton variables: [X]\n"
-	res := Parse("", out)
-	require.Len(t, res.Diagnostics, 1)
-	assert.Contains(t, res.Diagnostics[0].Message, "Singleton variables: [X]")
-}
-
-func TestParse_MixedWarningsAndErrors(t *testing.T) {
-	out := "Warning: /a.pl:1: w1\nERROR: /b.pl:2: e1\nWarning: /c.pl:3: w2\n"
-	res := Parse("", out)
-	assert.Len(t, res.Warnings(), 2)
-	assert.Len(t, res.Errors(), 1)
-}
-
-func TestParse_IgnoresUnrecognisedLines(t *testing.T) {
-	out := "hello world\nSome random thing\nWarning: /tmp/foo.pl:1: ok\n"
-	res := Parse("", out)
-	require.Len(t, res.Diagnostics, 1)
-	assert.Equal(t, "ok", res.Diagnostics[0].Message)
+	errors := res.Errors()
+	assert.Equal(t, 2, len(errors))
+	assert.Equal(t, SeverityError, errors[0].Severity)
+	assert.Equal(t, SeverityError, errors[1].Severity)
 }

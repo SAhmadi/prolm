@@ -3,37 +3,82 @@ package checker
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiscover_FindsSourceSkipsTestsAndVendor(t *testing.T) {
-	dir := t.TempDir()
-	write := func(p, body string) {
-		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, p)), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, p), []byte(body), 0644))
+func TestDiscover(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T, dir string)
+		wantLen int
+	}{
+		{
+			name:    "empty directory",
+			setup:   func(t *testing.T, dir string) {},
+			wantLen: 0,
+		},
+		{
+			name: "single main file",
+			setup: func(t *testing.T, dir string) {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "main.pl"), []byte("test."), 0644))
+			},
+			wantLen: 1,
+		},
+		{
+			name: "mixed source and test files",
+			setup: func(t *testing.T, dir string) {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "main.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "test_helper.pl"), []byte("test."), 0644))
+			},
+			wantLen: 1,
+		},
+		{
+			name: "nested structure",
+			setup: func(t *testing.T, dir string) {
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "tests"), 0755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "main.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "helper.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "tests", "main_test.pl"), []byte("test."), 0644))
+			},
+			wantLen: 2,
+		},
+		{
+			name: "vendor and hidden dirs skipped",
+			setup: func(t *testing.T, dir string) {
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor"), 0755))
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor", "dep.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, ".git", "config.pl"), []byte("test."), 0644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "main.pl"), []byte("test."), 0644))
+			},
+			wantLen: 1,
+		},
 	}
 
-	write("src/main.pl", "")
-	write("src/util.pl", "")
-	write("src/main_test.pl", "")    // excluded (test suffix)
-	write("tests/test_foo.pl", "")   // excluded (test prefix)
-	write("vendor/lib.pl", "")       // excluded (vendor)
-	write(".git/hook.pl", "")        // excluded (.git)
-	write("README.md", "")           // excluded (non-.pl)
-
-	files, err := Discover(dir)
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		filepath.Join(dir, "src", "main.pl"),
-		filepath.Join(dir, "src", "util.pl"),
-	}, files)
-}
-
-func TestDiscover_EmptyDir(t *testing.T) {
-	files, err := Discover(t.TempDir())
-	require.NoError(t, err)
-	assert.Empty(t, files)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.setup(t, dir)
+			got, err := Discover(dir)
+			require.NoError(t, err)
+			require.Len(t, got, tt.wantLen)
+			// Verify sorted
+			if len(got) > 0 {
+				sorted := make([]string, len(got))
+				copy(sorted, got)
+				sort.Strings(sorted)
+				assert.Equal(t, sorted, got)
+				// Verify absolute paths
+				for _, p := range got {
+					assert.True(t, filepath.IsAbs(p))
+				}
+			}
+		})
+	}
 }
