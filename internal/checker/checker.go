@@ -18,6 +18,9 @@ const defaultTimeout = 30 * time.Second
 // Options controls Checker behaviour.
 type Options struct {
 	Timeout time.Duration
+	// RuntimeFlags are runtime flags from [runtime.*].flags in Prolfile.toml.
+	// They are forwarded verbatim to rt.BuildCheckArgs (BUG-015).
+	RuntimeFlags []string
 }
 
 // ExecFunc is the seam used to run the runtime binary. Tests inject a stub so
@@ -69,7 +72,7 @@ func (c *Checker) Check(
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
-	args := rt.BuildCheckArgs(srcFiles, depPaths)
+	args := rt.BuildCheckArgs(srcFiles, depPaths, opts.RuntimeFlags)
 
 	execFn := c.Exec
 	if execFn == nil {

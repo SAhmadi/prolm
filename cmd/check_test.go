@@ -259,3 +259,112 @@ func TestExecute_Check_SpawnError_SurfacedToCaller(t *testing.T) {
 	err := Execute()
 	require.Error(t, err, "spawn error must propagate to caller")
 }
+
+// BUG-014: --config flag with a non-standard path must not break discover.
+// The discover func must receive filepath.Dir(manifestPath), not a sliced string.
+func TestExecute_Check_ConfigFlag_PassesCorrectProjectDir(t *testing.T) {
+	dir := t.TempDir()
+	// Place the manifest in a subdirectory to ensure it doesn't accidentally
+	// end with "Prolfile.toml" at a position matching filepath.Dir.
+	subDir := filepath.Join(dir, "myproject")
+	require.NoError(t, os.MkdirAll(filepath.Join(subDir, "src"), 0755))
+	storeDir := filepath.Join(dir, "store")
+
+	manifest := `[meta]
+prolfile_version = 1
+min_prolm_version = "0.1.0"
+
+[package]
+name = "p"
+version = "0.1.0"
+entry = "src/main.pl"
+runtime = "swi"
+`
+	manifestPath := filepath.Join(subDir, "Prolfile.toml")
+	require.NoError(t, os.WriteFile(manifestPath, []byte(manifest), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "Prolfile.lock"), []byte(`[meta]
+lock_version = 1
+prolfile_hash = "sha256:deadbeef"
+`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(subDir, "src", "main.pl"), []byte(":- module(main, []).\n"), 0644))
+
+	var gotDiscoverDir string
+	runner := &checkCmdRunner{
+		storeDir: storeDir,
+		newRuntime: func(name string) (runtime.Runtime, error) {
+			return &fakeRuntime{name: "swi"}, nil
+		},
+		discover: func(projectDir string) ([]string, error) {
+			gotDiscoverDir = projectDir
+			return nil, nil // no source files — just checking the dir
+		},
+		exec: func(context.Context, string, ...string) ([]byte, []byte, error) {
+			return nil, nil, nil
+		},
+	}
+	withCheckCmdRunner(t, runner)
+	resetCheckCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"check", "--config", manifestPath})
+	require.NoError(t, Execute())
+
+	// BUG-014: discover must receive the directory, not a string-sliced path.
+	assert.Equal(t, subDir, gotDiscoverDir,
+		"discover must receive filepath.Dir(manifestPath), not a sliced string")
+}
+
+// BUG-015: [runtime.swi].flags must be forwarded to BuildCheckArgs.
+// Previously the flags captured from pf.Runtime were discarded.
+func TestExecute_Check_RuntimeFlags_ForwardedToChecker(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	storeDir := filepath.Join(dir, "store")
+
+	manifest := `[meta]
+prolfile_version = 1
+min_prolm_version = "0.1.0"
+
+[package]
+name = "p"
+version = "0.1.0"
+entry = "src/main.pl"
+runtime = "swi"
+
+[runtime.swi]
+flags = ["-O", "--stack-limit=2g"]
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Prolfile.toml"), []byte(manifest), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Prolfile.lock"), []byte(`[meta]
+lock_version = 1
+prolfile_hash = "sha256:deadbeef"
+`), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "main.pl"), []byte(":- module(main, []).\n"), 0644))
+	srcFile := filepath.Join(dir, "src", "main.pl")
+
+	var gotFlags []string
+	fr := &fakeRuntime{
+		name: "swi",
+		buildCheckArgsHook: func(files, deps, flags []string) []string {
+			gotFlags = append([]string(nil), flags...)
+			return nil
+		},
+	}
+	runner := &checkCmdRunner{
+		storeDir:   storeDir,
+		newRuntime: func(name string) (runtime.Runtime, error) { return fr, nil },
+		discover:   func(string) ([]string, error) { return []string{srcFile}, nil },
+		exec: func(context.Context, string, ...string) ([]byte, []byte, error) {
+			return nil, nil, nil
+		},
+	}
+	withCheckCmdRunner(t, runner)
+	resetCheckCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"check"})
+	require.NoError(t, Execute())
+
+	// BUG-015: flags from [runtime.swi] must reach BuildCheckArgs.
+	assert.Equal(t, []string{"-O", "--stack-limit=2g"}, gotFlags,
+		"[runtime.swi].flags must be forwarded to BuildCheckArgs")
+}

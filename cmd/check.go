@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/prolm/prolm/internal/checker"
 	"github.com/prolm/prolm/internal/runtime"
@@ -92,8 +93,10 @@ func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Discover all source files (excluding test files).
-	srcFiles, err := r.discover(manifestPath[:len(manifestPath)-len("Prolfile.toml")])
+	// BUG-014: use filepath.Dir so --config with any path works correctly,
+	// instead of fragile string slicing that assumed the path ended with
+	// "Prolfile.toml" at a fixed offset.
+	srcFiles, err := r.discover(filepath.Dir(manifestPath))
 	if err != nil {
 		return fmt.Errorf("discovering source files: %w", err)
 	}
@@ -103,8 +106,18 @@ func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// BUG-015: forward [runtime.*].flags from Prolfile.toml to BuildCheckArgs.
+	var runtimeFlags []string
+	if pf.Runtime != nil {
+		if cfg, ok := pf.Runtime[rt.Name()]; ok {
+			runtimeFlags = cfg.Flags
+		}
+	}
+
 	c := &checker.Checker{Exec: r.exec}
-	res, err := c.Check(context.Background(), info.Path, srcFiles, depPaths, rt, checker.Options{})
+	res, err := c.Check(context.Background(), info.Path, srcFiles, depPaths, rt, checker.Options{
+		RuntimeFlags: runtimeFlags,
+	})
 	if err != nil {
 		return err
 	}
