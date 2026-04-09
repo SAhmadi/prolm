@@ -5,10 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/prolm/prolm/internal/installer"
-	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/runtime"
-	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
 	"github.com/spf13/cobra"
 )
@@ -67,26 +64,10 @@ func (r *runRunner) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Resolve lockfile. nil lock => first install hasn't happened yet.
-	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
-	lock, err := lockfile.Load(lockPath)
+	// Resolve lockfile and verify every locked package exists in the local store.
+	depPaths, err := verifyStoreDeps(pf, manifestPath, r.storeDir)
 	if err != nil {
-		return fmt.Errorf("reading Prolfile.lock: %w", err)
-	}
-	if lock == nil {
-		ui.Hint("Run `prolm install` first to download dependencies")
-		return fmt.Errorf("prolfile.lock not found at %s", lockPath)
-	}
-
-	// Verify every locked package exists in the local store.
-	store := installer.NewStore(r.storeDir)
-	depPaths := make([]string, 0, len(lock.Packages))
-	for _, pkg := range lock.Packages {
-		if !store.IsInstalled(pkg.Name, pkg.Version) {
-			ui.Hint("Run `prolm install` first to download dependencies")
-			return fmt.Errorf("package %s@%s not installed in store", pkg.Name, pkg.Version)
-		}
-		depPaths = append(depPaths, store.PackPath(pkg.Name, pkg.Version))
+		return err
 	}
 
 	// Resolve entry point (and any prolog args embedded in a [scripts] value).
