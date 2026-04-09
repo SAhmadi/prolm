@@ -28,11 +28,6 @@ never reuse a number, even after an issue is closed.
 | BUG-014     | Medium | [BUG-014 — cmd/check.go: fragile manifestPath string slicing breaks --config](https://github.com/SAhmadi/prolm/issues/32) | Phase 1 |
 | BUG-015     | Medium | [BUG-015 — cmd/check.go: ignores [runtime.swi].flags from manifest](https://github.com/SAhmadi/prolm/issues/33) | Phase 1 |
 | BUG-016     | Medium-High | [BUG-016 — checker: load_files/1 executes initialization directives during prolm check](https://github.com/SAhmadi/prolm/issues/34) | Phase 1 |
-| SEC-017     | Medium | [SEC-017 — prolm check executes dependency code without sandboxing or user warning](https://github.com/SAhmadi/prolm/issues/35) | Phase 1 |
-| DRY-005     | Medium | [DRY-005 — cmd/check.go reimplements internal/checker reporter (entire reporter package is dead code)](https://github.com/SAhmadi/prolm/issues/36) | Phase 1 |
-| QUALITY-023 | Low-Med | [QUALITY-023 — cmd/check.go: hand-rolled JSON uses fmt %q which is not JSON-safe](https://github.com/SAhmadi/prolm/issues/37) | Phase 1 |
-| QUALITY-024 | Low    | [QUALITY-024 — cmd/check.go: strict-mode exit decision duplicated with checker.failing](https://github.com/SAhmadi/prolm/issues/38) | Phase 1 |
 | QUALITY-025 | Low    | [QUALITY-025 — prolm check missing --timeout flag (inconsistent with prolm test)](https://github.com/SAhmadi/prolm/issues/39) | Phase 1 |
-| ERR-004     | Medium | [ERR-004 — checker.Check silently swallows exec errors (binary missing, ctx deadline)](https://github.com/SAhmadi/prolm/issues/40) | Phase 1 |
 | QUALITY-026 | Cosmetic | [QUALITY-026 — PR #31 description claims it adds prolm test command (false)](https://github.com/SAhmadi/prolm/issues/41) | Phase 1 |
 
