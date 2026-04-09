@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/prolm/prolm/internal/checker"
 	"github.com/prolm/prolm/internal/runtime"
@@ -52,6 +53,7 @@ func init() {
 	rootCmd.AddCommand(checkCmd)
 	checkCmd.Flags().Bool("strict", false, "Treat warnings as errors")
 	checkCmd.Flags().Bool("no-deps", false, "Analyse project source only; do not load dependency modules")
+	checkCmd.Flags().Duration("timeout", 30*time.Second, "Per-invocation timeout (default 30s)")
 }
 
 func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
@@ -114,9 +116,12 @@ func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	timeout, _ := cmd.Flags().GetDuration("timeout")
+
 	c := &checker.Checker{Exec: r.exec}
 	res, err := c.Check(context.Background(), info.Path, srcFiles, depPaths, rt, checker.Options{
 		RuntimeFlags: runtimeFlags,
+		Timeout:      timeout,
 	})
 	if err != nil {
 		return err

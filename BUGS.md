@@ -25,14 +25,3 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
-| QUALITY-025 | Low    | [QUALITY-025 — prolm check missing --timeout flag (inconsistent with prolm test)](https://github.com/SAhmadi/prolm/issues/39) | Phase 1 |
-| QUALITY-026 | Cosmetic | [QUALITY-026 — PR #31 description claims it adds prolm test command (false)](https://github.com/SAhmadi/prolm/issues/41) | Phase 1 |
-
-## Resolved Issues
-
-| ID | Severity | Description | Commit | Date |
-|----|----------|-------------|--------|------|
-| BUG-014 | Medium | cmd/check.go: fragile manifestPath string slicing breaks --config | 215c94b | 2026-04-09 |
-| BUG-015 | Medium | cmd/check.go: ignores [runtime.swi].flags from manifest | 5e28d0a | 2026-04-09 |
-| BUG-016 | Medium-High | checker: load_files/1 executes initialization directives during prolm check | f275ad7 | 2026-04-09 |
-

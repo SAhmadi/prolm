@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/prolm/prolm/internal/checker"
 	"github.com/prolm/prolm/internal/runtime"
@@ -21,6 +22,41 @@ func resetCheckCmd(t *testing.T) {
 	checkCmd.ResetFlags()
 	checkCmd.Flags().Bool("strict", false, "")
 	checkCmd.Flags().Bool("no-deps", false, "")
+	checkCmd.Flags().Duration("timeout", 30*time.Second, "")
+}
+
+// QUALITY-025: --timeout flag must be accepted and forwarded to checker.Options.Timeout.
+// This test verifies the flag is registered, parsed, and wired through.
+func TestExecute_Check_TimeoutFlag_ForwardedToChecker(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	storeDir := filepath.Join(dir, "store")
+	writeRunProject(t, dir, storeDir)
+	srcFile := filepath.Join(dir, "src", "main.pl")
+
+	var gotDeadline time.Time
+	runner := &checkCmdRunner{
+		storeDir:   storeDir,
+		newRuntime: func(name string) (runtime.Runtime, error) { return &fakeRuntime{}, nil },
+		discover:   func(string) ([]string, error) { return []string{srcFile}, nil },
+		exec: func(ctx context.Context, _ string, _ ...string) ([]byte, []byte, error) {
+			deadline, ok := ctx.Deadline()
+			require.True(t, ok, "context must have a deadline when --timeout is set")
+			gotDeadline = deadline
+			return nil, nil, nil
+		},
+	}
+	withCheckCmdRunner(t, runner)
+	resetCheckCmd(t)
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"check", "--timeout", "5s"})
+	require.NoError(t, Execute())
+
+	// Deadline must be approximately 5s from now, not 30s (the default).
+	now := time.Now()
+	assert.True(t, gotDeadline.After(now), "deadline must be in the future")
+	assert.True(t, gotDeadline.Before(now.Add(6*time.Second)),
+		"deadline must be ~5s from now, not the 30s default; got %v", gotDeadline)
 }
 
 func withCheckCmdRunner(t *testing.T, r *checkCmdRunner) {
