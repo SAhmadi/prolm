@@ -44,10 +44,11 @@ var reFailedOutOf = regexp.MustCompile(`(?m)^%\s*(\d+)\s+tests?\s+failed\s+out\s
 // "% [1/1] main:hello .................................. passed (0.002 sec)"
 var reCasePass = regexp.MustCompile(`^\s*%\s*\[\d+/\d+\]\s+([^:\s]+):([^:\s]+)\b.*\bpassed\b`)
 
-// reLegacyPLUnitDone matches legacy SWI-PlUnit progress lines like:
+// reLegacyPLUnitPass matches legacy SWI-PlUnit progress lines like:
+// "% PL-Unit: main . passed 0.004 sec"
 // "% PL-Unit: main .. done"
-// Some SWI versions emit this without an aggregate "All N tests passed" line.
-var reLegacyPLUnitDone = regexp.MustCompile(`^\s*%\s*PL-Unit:\s+.*\s+([.A-Za-z]+)\s+done\b`)
+// Some SWI versions emit these without an aggregate "All N tests passed" line.
+var reLegacyPLUnitPass = regexp.MustCompile(`^\s*%\s*PL-Unit:\s+[^ ]+\s+([.]+)\s+(?:passed\b|done\b)`)
 
 // reCaseFail matches lines like "% test main:truth: failed" or
 // "ERROR: test main:truth: <message>". Suite and case names use [^:\s]+ so
@@ -95,7 +96,7 @@ func Parse(stdout, stderr string) *TestResult {
 			passedCases++
 			continue
 		}
-		if m := reLegacyPLUnitDone.FindStringSubmatch(line); len(m) == 2 {
+		if m := reLegacyPLUnitPass.FindStringSubmatch(line); len(m) == 2 {
 			legacyDots += strings.Count(m[1], ".")
 		}
 		if !strings.Contains(line, "test ") {
