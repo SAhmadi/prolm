@@ -195,9 +195,18 @@ func TestLoad_EmptyFile(t *testing.T) {
 	dir := t.TempDir()
 	path := writeLock(t, dir, "")
 
-	_, err := Load(path)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "lock_version")
+	lf, err := Load(path)
+	require.NoError(t, err)
+	assert.Nil(t, lf)
+}
+
+func TestLoad_WhitespaceOnlyFile(t *testing.T) {
+	dir := t.TempDir()
+	path := writeLock(t, dir, " \n\t\n")
+
+	lf, err := Load(path)
+	require.NoError(t, err)
+	assert.Nil(t, lf)
 }
 
 func TestLoad_SignatureFieldParsed(t *testing.T) {

@@ -351,15 +351,15 @@ This is the most security-critical sub-phase.
 
 *Depends on: all of Phase 1*
 
-- [ ] Create `testdata/valid-project/` fixture: complete Prolfile.toml, `src/main.pl`, `tests/main_test.pl`
-- [ ] Write e2e integration test running the acceptance scenario:
+- [x] Create `testdata/valid-project/` fixture: complete Prolfile.toml, `src/main.pl`, `tests/main_test.pl`
+- [x] Write e2e integration test running the acceptance scenario:
   ```
   prolm new hello && cd hello && prolm install && prolm run && prolm test && prolm check
   ```
   via `os/exec` (requires swipl installed)
-- [ ] Run full `go test ./...` and `go test -race ./...`
-- [ ] Verify `go vet ./...` clean
-- [ ] Run adversarial unpack tests one final time
+- [x] Run full `go test ./...` and `go test -race ./...`
+- [x] Verify `go vet ./...` clean
+- [x] Run adversarial unpack tests one final time
 
 **Phase 1 is complete when the e2e scenario passes.**
 

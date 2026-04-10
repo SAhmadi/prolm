@@ -25,17 +25,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Vet
-        run: go vet ./...
+      - name: Install SWI-Prolog (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog-nox
 
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+      - name: Install SWI-Prolog (macOS)
+        if: runner.os == 'macOS'
+        run: brew install swi-prolog
 
-      - name: Staticcheck
-        run: staticcheck ./...
-
-      - name: Test
-        run: go test -race -count=1 ./...
+      - name: CI
+        run: make ci
 
   build:
     name: Build

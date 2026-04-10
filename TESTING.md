@@ -71,6 +71,9 @@ go test ./internal/installer/...
 # Single test function
 go test ./cmd/... -run TestRunCommand_MissingLockfile -v
 
+# Phase 1 end-to-end acceptance smoke test
+go test ./cmd -run TestSmoke_EndToEndPhase1Acceptance -count=1
+
 # With verbose output
 go test ./... -v
 
@@ -236,6 +239,7 @@ runtime-specific incompatibilities early.
 - Use GitHub Actions matrix strategy
 - Cache Prolog runtime installs (swipl is ~200 MB compiled)
 - Integration tests in `testdata/` should be runtime-portable where possible
+- The Phase 1 smoke test requires `swipl` to be installed and available on `PATH`
 
 ---
 

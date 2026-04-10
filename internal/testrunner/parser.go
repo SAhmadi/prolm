@@ -40,6 +40,10 @@ var reAllPassed = regexp.MustCompile(`(?m)^%\s*All\s+(\d+)\s+tests?\s+passed`)
 // "% 2 tests failed out of 5".
 var reFailedOutOf = regexp.MustCompile(`(?m)^%\s*(\d+)\s+tests?\s+failed\s+out\s+of\s+(\d+)`)
 
+// reCasePass matches SWI-Prolog 10 progress lines like:
+// "% [1/1] main:hello .................................. passed (0.002 sec)"
+var reCasePass = regexp.MustCompile(`^\s*%\s*\[\d+/\d+\]\s+([^:\s]+):([^:\s]+)\b.*\bpassed\b`)
+
 // reCaseFail matches lines like "% test main:truth: failed" or
 // "ERROR: test main:truth: <message>". Suite and case names use [^:\s]+ so
 // that hyphenated or dotted identifiers (e.g. "my-suite:case-1") are captured
@@ -75,10 +79,15 @@ func Parse(stdout, stderr string) *TestResult {
 	// When it is absent but per-case failure lines exist, we backfill
 	// res.Failed/res.Errors from the captured cases (BUG-012).
 	hasSummary := res.Total > 0
+	passedCases := 0
 
 	// Capture individual failing cases.
 	seen := map[string]struct{}{}
 	for _, line := range strings.Split(combined, "\n") {
+		if m := reCasePass.FindStringSubmatch(line); len(m) == 3 {
+			passedCases++
+			continue
+		}
 		if !strings.Contains(line, "test ") {
 			continue
 		}
@@ -108,6 +117,7 @@ func Parse(stdout, stderr string) *TestResult {
 	// from the individual cases captured above so that FailedCount() is correct
 	// and the process exits non-zero (CI-safety requirement, BUG-012).
 	if !hasSummary {
+		res.Passed = passedCases
 		for _, c := range res.Cases {
 			switch c.Status {
 			case "fail":
@@ -116,8 +126,8 @@ func Parse(stdout, stderr string) *TestResult {
 				res.Errors++
 			}
 		}
-		if res.Failed+res.Errors > 0 {
-			res.Total = res.Failed + res.Errors
+		if res.Passed+res.Failed+res.Errors > 0 {
+			res.Total = res.Passed + res.Failed + res.Errors
 		}
 	}
 

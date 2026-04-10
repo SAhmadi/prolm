@@ -1,4 +1,4 @@
-:- initialization(main, main).
+:- module(main, [main/0]).
 
 main :-
-    write('hello'), nl.
+    write('Hello, world!'), nl.

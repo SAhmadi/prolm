@@ -65,6 +65,9 @@ func Load(path string) (*prolfile.LockFile, error) {
 	if containsConflictMarkers(data) {
 		return nil, &GitConflictError{Path: path}
 	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil, nil
+	}
 
 	var lf prolfile.LockFile
 	if err := toml.Unmarshal(data, &lf); err != nil {
