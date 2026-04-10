@@ -87,6 +87,7 @@ func TestNewProject_TestPlContent(t *testing.T) {
 	content := string(data)
 	assert.Contains(t, content, "begin_tests(main)")
 	assert.Contains(t, content, "end_tests(main)")
+	assert.Contains(t, content, "use_module('../src/main')")
 }
 
 func TestNewProject_GitattributesContent(t *testing.T) {

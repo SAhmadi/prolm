@@ -303,7 +303,7 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 			want: []string{
 				"-g", "use_module(library(plunit))",
 				"-g", "use_module('dep1')",
-				"-g", "use_module('tests/main_test')",
+				"-g", "load_files(['tests/main_test'],[if(true)])",
 				"-g", "run_tests",
 				"-t", "halt",
 			},
@@ -315,8 +315,8 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 			flags:     nil,
 			want: []string{
 				"-g", "use_module(library(plunit))",
-				"-g", "use_module('t1')",
-				"-g", "use_module('t2')",
+				"-g", "load_files(['t1'],[if(true)])",
+				"-g", "load_files(['t2'],[if(true)])",
 				"-g", "run_tests",
 				"-t", "halt",
 			},
@@ -330,7 +330,7 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 				"-O",
 				"-g", "use_module(library(plunit))",
 				"-g", "use_module('dep1')",
-				"-g", "use_module('tests/rules_test')",
+				"-g", "load_files(['tests/rules_test'],[if(true)])",
 				"-g", "run_tests",
 				"-t", "halt",
 			},
@@ -343,7 +343,7 @@ func TestSWIRuntime_BuildTestArgs(t *testing.T) {
 			want: []string{
 				"-g", "use_module(library(plunit))",
 				"-g", "use_module('/store/o''clock/1.0')",
-				"-g", "use_module('/home/o''brien/main_test')",
+				"-g", "load_files(['/home/o''brien/main_test'],[if(true)])",
 				"-g", "run_tests",
 				"-t", "halt",
 			},

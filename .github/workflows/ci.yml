@@ -25,17 +25,25 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Vet
-        run: go vet ./...
+      - name: Install SWI-Prolog (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog-nox
+
+      - name: Install SWI-Prolog (macOS)
+        if: runner.os == 'macOS'
+        run: brew install swi-prolog
 
       - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+        run: |
+          GOBIN="$(go env GOPATH)/bin"
+          echo "$GOBIN" >> "$GITHUB_PATH"
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$GOBIN/staticcheck" -version
 
-      - name: Staticcheck
-        run: staticcheck ./...
-
-      - name: Test
-        run: go test -race -count=1 ./...
+      - name: CI
+        run: make ci
 
   build:
     name: Build

@@ -154,7 +154,7 @@ func (s *SWIRuntime) BuildRunArgs(entry string, deps []string, flags []string, g
 //
 // Result: [flags...] -g "use_module(library(plunit))" [-g "use_module('dep')" ...]
 //
-//	[-g "use_module('test')" ...] -g "run_tests" -t halt
+//	[-g "load_files(['test'],[if(true)])" ...] -g "run_tests" -t halt
 func (s *SWIRuntime) BuildTestArgs(testFiles []string, deps []string, flags []string) []string {
 	var args []string
 
@@ -168,7 +168,7 @@ func (s *SWIRuntime) BuildTestArgs(testFiles []string, deps []string, flags []st
 	}
 
 	for _, tf := range testFiles {
-		args = append(args, "-g", fmt.Sprintf("use_module('%s')", escapePrologAtom(tf)))
+		args = append(args, "-g", fmt.Sprintf("load_files(['%s'],[if(true)])", escapePrologAtom(tf)))
 	}
 
 	args = append(args, "-g", "run_tests")
