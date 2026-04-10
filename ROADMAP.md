@@ -337,13 +337,13 @@ This is the most security-critical sub-phase.
 
 *Depends on: 1.3, 1.7*
 
-- [ ] Print diagnostic info:
+- [x] Print diagnostic info:
   - prolm version
   - Runtime: `swi -> /path/to/swipl (version) [check/X]`
   - Store location + pack count
   - Project info (if in a project)
   - Proxy status: `HTTP_PROXY`, `HTTPS_PROXY` (per 8.21)
-- [ ] Graceful when no swipl or no project (per 8.27)
+- [x] Graceful when no swipl or no project (per 8.27)
 
 **Testing:** Output format. Graceful handling when swipl/project missing.
 
