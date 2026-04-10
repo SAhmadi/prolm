@@ -30,6 +30,26 @@ func TestParse_SWI10ProgressOutput_AllPassed(t *testing.T) {
 	assert.Equal(t, 0, res.Errors)
 }
 
+func TestParse_LegacyPLUnitDotsWithoutSummary_AllPassed(t *testing.T) {
+	stdout := `% PL-Unit: main . done
+`
+	res := Parse(stdout, "")
+	assert.Equal(t, 1, res.Total)
+	assert.Equal(t, 1, res.Passed)
+	assert.Equal(t, 0, res.Failed)
+	assert.Equal(t, 0, res.Errors)
+}
+
+func TestParse_LegacyPLUnitDotsWithoutSummary_MultiplePassed(t *testing.T) {
+	stdout := `% PL-Unit: main .. done
+`
+	res := Parse(stdout, "")
+	assert.Equal(t, 2, res.Total)
+	assert.Equal(t, 2, res.Passed)
+	assert.Equal(t, 0, res.Failed)
+	assert.Equal(t, 0, res.Errors)
+}
+
 func TestParse_OneFailure(t *testing.T) {
 	stdout := `% PL-Unit: main
 % test main:truth: failed

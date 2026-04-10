@@ -44,6 +44,11 @@ var reFailedOutOf = regexp.MustCompile(`(?m)^%\s*(\d+)\s+tests?\s+failed\s+out\s
 // "% [1/1] main:hello .................................. passed (0.002 sec)"
 var reCasePass = regexp.MustCompile(`^\s*%\s*\[\d+/\d+\]\s+([^:\s]+):([^:\s]+)\b.*\bpassed\b`)
 
+// reLegacyPLUnitDone matches legacy SWI-PlUnit progress lines like:
+// "% PL-Unit: main .. done"
+// Some SWI versions emit this without an aggregate "All N tests passed" line.
+var reLegacyPLUnitDone = regexp.MustCompile(`^\s*%\s*PL-Unit:\s+.*\s+([.A-Za-z]+)\s+done\b`)
+
 // reCaseFail matches lines like "% test main:truth: failed" or
 // "ERROR: test main:truth: <message>". Suite and case names use [^:\s]+ so
 // that hyphenated or dotted identifiers (e.g. "my-suite:case-1") are captured
@@ -77,9 +82,11 @@ func Parse(stdout, stderr string) *TestResult {
 
 	// hasSummary tracks whether an aggregate summary line was found.
 	// When it is absent but per-case failure lines exist, we backfill
-	// res.Failed/res.Errors from the captured cases (BUG-012).
+	// res.Failed/res.Errors from the captured cases (BUG-012). Some legacy SWI
+	// outputs also encode pass counts as dots in a PL-Unit progress line.
 	hasSummary := res.Total > 0
 	passedCases := 0
+	legacyDots := 0
 
 	// Capture individual failing cases.
 	seen := map[string]struct{}{}
@@ -87,6 +94,9 @@ func Parse(stdout, stderr string) *TestResult {
 		if m := reCasePass.FindStringSubmatch(line); len(m) == 3 {
 			passedCases++
 			continue
+		}
+		if m := reLegacyPLUnitDone.FindStringSubmatch(line); len(m) == 2 {
+			legacyDots += strings.Count(m[1], ".")
 		}
 		if !strings.Contains(line, "test ") {
 			continue
@@ -118,6 +128,9 @@ func Parse(stdout, stderr string) *TestResult {
 	// and the process exits non-zero (CI-safety requirement, BUG-012).
 	if !hasSummary {
 		res.Passed = passedCases
+		if res.Passed == 0 && legacyDots > 0 {
+			res.Passed = legacyDots
+		}
 		for _, c := range res.Cases {
 			switch c.Status {
 			case "fail":
