@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/prolm/prolm/internal/manifest"
 	"github.com/prolm/prolm/internal/runtime"
@@ -156,17 +157,28 @@ func redactProxyValue(raw string) string {
 	}
 
 	u, err := url.Parse(raw)
-	if err != nil || u == nil {
-		return raw
-	}
-
-	if u.User != nil {
+	if err == nil && u != nil && u.User != nil {
 		if _, hasPassword := u.User.Password(); hasPassword {
 			u.User = url.UserPassword("REDACTED", "REDACTED")
 			return u.String()
 		}
 		u.User = url.User("REDACTED")
+		return u.String()
 	}
 
-	return u.String()
+	// Fallback for schemeless/malformed proxy values such as
+	// "user:pass@proxy.corp:8080" where url.Parse does not populate u.User.
+	if at := strings.LastIndex(raw, "@"); at > 0 && at < len(raw)-1 {
+		prefix := raw[:at]
+		suffix := raw[at+1:]
+		if strings.Contains(prefix, ":") {
+			return "REDACTED:REDACTED@" + suffix
+		}
+		return "REDACTED@" + suffix
+	}
+
+	if err == nil && u != nil {
+		return u.String()
+	}
+	return raw
 }

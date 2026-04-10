@@ -170,6 +170,39 @@ func TestExecute_Env_ProxyUnset(t *testing.T) {
 	assert.Contains(t, out, "proxy      HTTP_PROXY=unset, HTTPS_PROXY=unset")
 }
 
+func TestExecute_Env_ProxyCredentialsAreRedactedForSchemelessValues(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	fr := &fakeRuntime{name: "swi", info: &runtime.RuntimeInfo{Path: "/usr/local/bin/swipl", Version: "9.2.1"}}
+	runner := newTestEnvRunner(
+		fr,
+		manifest.ErrNotFound,
+		"",
+		nil,
+		nil,
+		"/Users/test/.prolm/store",
+		0,
+		nil,
+		map[string]string{
+			"HTTP_PROXY":  "user:supersecret@proxy.corp:8080",
+			"HTTPS_PROXY": "alice@proxy.corp:8443",
+		},
+	)
+	withEnvCmdRunner(t, runner)
+
+	buf := resetRootCmd(t)
+	rootCmd.SetArgs([]string{"env"})
+	err := Execute()
+	require.NoError(t, err)
+
+	out := buf.String()
+	assert.NotContains(t, out, "supersecret")
+	assert.NotContains(t, out, "alice@proxy.corp")
+	assert.Contains(t, out, "HTTP_PROXY=REDACTED:REDACTED@proxy.corp:8080")
+	assert.Contains(t, out, "HTTPS_PROXY=REDACTED@proxy.corp:8443")
+}
+
 func TestExecute_Env_StoreCountRendering(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -248,12 +281,50 @@ func TestExecute_Env_ProjectLoadUnexpectedError_ReturnsError(t *testing.T) {
 }
 
 func TestRedactProxyValue(t *testing.T) {
-	redacted := redactProxyValue("http://alice:secret@proxy.corp:8080")
-	assert.False(t, strings.Contains(redacted, "secret"))
-	assert.Equal(t, "http://REDACTED:REDACTED@proxy.corp:8080", redacted)
+	tests := []struct {
+		name     string
+		raw      string
+		expected string
+	}{
+		{
+			name:     "valid URL with username and password",
+			raw:      "http://alice:secret@proxy.corp:8080",
+			expected: "http://REDACTED:REDACTED@proxy.corp:8080",
+		},
+		{
+			name:     "valid URL with username only",
+			raw:      "http://alice@proxy.corp:8080",
+			expected: "http://REDACTED@proxy.corp:8080",
+		},
+		{
+			name:     "schemeless with username and password",
+			raw:      "alice:secret@proxy.corp:8080",
+			expected: "REDACTED:REDACTED@proxy.corp:8080",
+		},
+		{
+			name:     "schemeless with username only",
+			raw:      "alice@proxy.corp:8080",
+			expected: "REDACTED@proxy.corp:8080",
+		},
+		{
+			name:     "plain proxy without credentials",
+			raw:      "https://proxy.corp:8443",
+			expected: "https://proxy.corp:8443",
+		},
+		{
+			name:     "empty value",
+			raw:      "",
+			expected: "unset",
+		},
+	}
 
-	assert.Equal(t, "unset", redactProxyValue(""))
-	assert.Equal(t, "https://proxy.corp:8443", redactProxyValue("https://proxy.corp:8443"))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redactProxyValue(tc.raw)
+			assert.Equal(t, tc.expected, got)
+			assert.False(t, strings.Contains(got, "secret"))
+		})
+	}
 }
 
 func TestCountInstalledPacks(t *testing.T) {
