@@ -14,7 +14,7 @@ never reuse a number, even after an issue is closed.
 |-----------|----------------------------------|---------|
 | BUG       | Correctness bugs                 | BUG-018 |
 | SEC       | Security issues                  | SEC-019 |
-| DRY       | Code duplication / DRY violation | DRY-006 |
+| DRY       | Code duplication / DRY violation | DRY-007 |
 | QUALITY   | Code quality / tech debt         | QUALITY-028 |
 | ERR       | Error handling issues            | ERR-005 |
 
@@ -25,3 +25,4 @@ never reuse a number, even after an issue is closed.
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
+| DRY-006 | Low | [DRY-006 — Duplicate smoke-command helper logic in cmd/smoke_test.go](https://github.com/SAhmadi/prolm/issues/49) | Before merge |
