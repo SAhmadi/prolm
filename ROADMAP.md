@@ -369,13 +369,13 @@ This is the most security-critical sub-phase.
 
 ### 1.5.1 — `prolm new` UX verification and help copy
 
-- [ ] Verify shipped-binary behavior for `prolm new` with a missing `<name>`
+- [x] Verify shipped-binary behavior for `prolm new` with a missing `<name>`
   - This is already enforced in code via `cobra.ExactArgs(1)` and covered in `cmd/new_test.go`
   - If a release binary still appears to no-op, fix the packaging/invocation path so users see a clear error and usage text
-- [ ] Expand `prolm new --help` to explain the difference between `app`, `library`, and `cli`
+- [x] Expand `prolm new --help` to explain the difference between `app`, `library`, and `cli`
   - `app` is available in Phase 1 / Phase 1.5
   - `library` and `cli` remain Phase 2 work
-- [ ] Keep `prolm new <name>` required; do not add a silent no-op path
+- [x] Keep `prolm new <name>` required; do not add a silent no-op path
 
 ### 1.5.2 — Shell completion and discoverability (macOS + Linux)
 

@@ -108,8 +108,8 @@ func TestExecute_New_Help_ExplainsTemplateStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	out := buf.String()
-	assert.Contains(t, out, "app      Available now")
+	assert.Contains(t, out, "app      Available in Phase 1 / Phase 1.5")
 	assert.Contains(t, out, "library  Planned for Phase 2")
 	assert.Contains(t, out, "cli      Planned for Phase 2")
-	assert.Contains(t, out, "project template: app (available now) | library (Phase 2) | cli (Phase 2)")
+	assert.Contains(t, out, "project template: app (Phase 1 / 1.5) | library (Phase 2) | cli (Phase 2)")
 }

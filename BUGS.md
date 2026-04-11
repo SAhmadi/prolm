@@ -14,7 +14,7 @@ never reuse a number, even after an issue is closed.
 |-----------|----------------------------------|---------|
 | BUG       | Correctness bugs                 | BUG-018 |
 | SEC       | Security issues                  | SEC-019 |
-| DRY       | Code duplication / DRY violation | DRY-006 |
+| DRY       | Code duplication / DRY violation | DRY-007 |
 | QUALITY   | Code quality / tech debt         | QUALITY-028 |
 | ERR       | Error handling issues            | ERR-005 |
 

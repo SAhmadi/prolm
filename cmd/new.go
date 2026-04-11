@@ -14,8 +14,8 @@ The project is initialized with a Prolfile.toml, source files, test files,
 and a git repository.
 
 Templates:
-  app      Available now. Creates an executable-style project with src/main.pl
-           and a matching test file.
+  app      Available in Phase 1 / Phase 1.5. Creates an executable-style
+           project with src/main.pl and a matching test file.
   library  Planned for Phase 2. Will create a reusable module/library layout.
   cli      Planned for Phase 2. Will create a command-line oriented project
            with argument handling patterns.`,
@@ -32,7 +32,7 @@ Templates:
 }
 
 func init() {
-	newCmd.Flags().String("template", "app", "project template: app (available now) | library (Phase 2) | cli (Phase 2)")
+	newCmd.Flags().String("template", "app", "project template: app (Phase 1 / 1.5) | library (Phase 2) | cli (Phase 2)")
 	newCmd.Flags().String("runtime", "swi", "target runtime: swi | gnu | scryer")
 	rootCmd.AddCommand(newCmd)
 }
