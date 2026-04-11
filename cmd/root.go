@@ -42,26 +42,24 @@ workflow across SWI-Prolog, GNU Prolog, and Scryer Prolog.`,
 
 // Execute is the entry point called from main.go.
 func Execute() error {
-	err := rootCmd.Execute()
+	executedCmd, err := rootCmd.ExecuteC()
 	if err != nil {
-		printCommandError(err)
+		printCommandError(executedCmd, err)
 	}
 	return err
 }
 
-func printCommandError(err error) {
+func printCommandError(executedCmd *cobra.Command, err error) {
 	_, _ = rootCmd.ErrOrStderr().Write([]byte(err.Error() + "\n"))
 	if isUsageError(err) {
-		usageCmd := commandForUsage()
+		usageCmd := usageCommand(executedCmd)
 		_, _ = rootCmd.ErrOrStderr().Write([]byte("\n" + usageCmd.UsageString()))
 	}
 }
 
-func commandForUsage() *cobra.Command {
-	if len(os.Args) > 1 {
-		if cmd, _, err := rootCmd.Find(os.Args[1:]); err == nil && cmd != nil {
-			return cmd
-		}
+func usageCommand(executedCmd *cobra.Command) *cobra.Command {
+	if executedCmd != nil {
+		return executedCmd
 	}
 	return rootCmd
 }
@@ -69,6 +67,7 @@ func commandForUsage() *cobra.Command {
 func isUsageError(err error) bool {
 	msg := err.Error()
 	for _, marker := range []string{
+		"unknown command",
 		"unknown flag",
 		"accepts ",
 		"requires at least",

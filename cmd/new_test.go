@@ -23,6 +23,9 @@ func TestExecute_New_MissingArgs(t *testing.T) {
 	err := Execute()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "accepts 1 arg")
+	out := buf.String()
+	assert.Contains(t, out, "Usage:")
+	assert.Contains(t, out, "prolm new <name>")
 }
 
 func TestExecute_New_InvalidName(t *testing.T) {

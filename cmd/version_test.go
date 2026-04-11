@@ -100,6 +100,26 @@ func TestExecute_CompletionHelp(t *testing.T) {
 	assert.Contains(t, out, "fish")
 }
 
+func TestExecute_UnknownCommand_ShowsRootUsage(t *testing.T) {
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+		rootCmd.SetArgs(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"frob"})
+	err := Execute()
+	require.Error(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, `unknown command "frob" for "prolm"`)
+	assert.Contains(t, out, "Usage:")
+	assert.Contains(t, out, "prolm [command]")
+}
+
 func TestCommandCentralDocTracksPublicSurface(t *testing.T) {
 	data, err := os.ReadFile("../docs/command-central.md")
 	require.NoError(t, err)
