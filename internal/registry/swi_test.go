@@ -72,6 +72,20 @@ const packDetailHTML = `<!DOCTYPE html>
 </table>
 </body></html>`
 
+const prosqliteDetailHTML = `<!DOCTYPE html>
+<html><body>
+<h2>prosqlite</h2>
+<table>
+<tr><th>Version</th><th>SHA1</th><th>#Downloads</th><th>URL</th></tr>
+<tr>
+  <td>0.9.11</td>
+  <td>a3f2c1d9e8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3</td>
+  <td>300</td>
+  <td><a href="https://github.com/example/prosqlite/archive/v0.9.11.tar.gz">download</a></td>
+</tr>
+</table>
+</body></html>`
+
 const packNotFoundHTML = `<!DOCTYPE html>
 <html><body>
 <h2>Pack not found</h2>
@@ -212,6 +226,22 @@ func TestVersions_Found(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, versions, 3)
 	assert.Equal(t, "1.4.3", versions[0].Version)
+}
+
+// BUG-018: Versions must request /pack/list with ?p=<name> as a real query
+// parameter. Encoding '?p=' into the path causes SWI to return not-found pages.
+func TestVersions_UsesPackQueryParameter(t *testing.T) {
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/pack/list", r.URL.Path)
+		assert.Equal(t, "prosqlite", r.URL.Query().Get("p"))
+		w.Write([]byte(prosqliteDetailHTML))
+	})
+
+	versions, err := reg.Versions(context.Background(), "prosqlite")
+	require.NoError(t, err)
+	require.Len(t, versions, 1)
+	assert.Equal(t, "prosqlite", versions[0].Name)
+	assert.Equal(t, "0.9.11", versions[0].Version)
 }
 
 func TestVersions_PackNotFound(t *testing.T) {

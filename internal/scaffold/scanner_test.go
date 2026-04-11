@@ -23,7 +23,7 @@ main :- true.
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"clpfd": "*"}, deps)
+	assert.Empty(t, deps)
 }
 
 func TestScanDeps_SkipsBuiltins(t *testing.T) {
@@ -72,40 +72,40 @@ func TestScanDeps_NestedLibraryPath(t *testing.T) {
 
 func TestScanDeps_MultipleDeps(t *testing.T) {
 	dir := t.TempDir()
-	writePl(t, dir, "main.pl", `:- use_module(library(clpfd)).
-:- use_module(library(prosqlite)).
+	writePl(t, dir, "main.pl", `:- use_module(library(prosqlite)).
+:- use_module(library(http/http_client)).
 :- use_module(library(lists)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "*", deps["clpfd"])
 	assert.Equal(t, "*", deps["prosqlite"])
+	assert.Equal(t, "*", deps["http"])
 	assert.Len(t, deps, 2) // lists is built-in
 }
 
 func TestScanDeps_MultipleFiles(t *testing.T) {
 	dir := t.TempDir()
-	writePl(t, dir, "src/main.pl", `:- use_module(library(clpfd)).
+	writePl(t, dir, "src/main.pl", `:- use_module(library(prosqlite)).
 `)
-	writePl(t, dir, "src/utils.pl", `:- use_module(library(prosqlite)).
+	writePl(t, dir, "src/utils.pl", `:- use_module(library(http/http_client)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "*", deps["clpfd"])
 	assert.Equal(t, "*", deps["prosqlite"])
+	assert.Equal(t, "*", deps["http"])
 	assert.Len(t, deps, 2)
 }
 
 func TestScanDeps_Deduplication(t *testing.T) {
 	dir := t.TempDir()
-	writePl(t, dir, "a.pl", `:- use_module(library(clpfd)).
+	writePl(t, dir, "a.pl", `:- use_module(library(prosqlite)).
 `)
-	writePl(t, dir, "b.pl", `:- use_module(library(clpfd)).
+	writePl(t, dir, "b.pl", `:- use_module(library(prosqlite)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
 	assert.Len(t, deps, 1)
-	assert.Equal(t, "*", deps["clpfd"])
+	assert.Equal(t, "*", deps["prosqlite"])
 }
 
 func TestScanDeps_EmptyDirectory(t *testing.T) {
@@ -125,25 +125,25 @@ func TestScanDeps_NoPlFiles(t *testing.T) {
 
 func TestScanDeps_IndentedDirective(t *testing.T) {
 	dir := t.TempDir()
-	writePl(t, dir, "main.pl", `  :- use_module(library(clpfd)).
-	:- use_module(library(prosqlite)).
+	writePl(t, dir, "main.pl", `  :- use_module(library(prosqlite)).
+	:- use_module(library(http/http_client)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "*", deps["clpfd"])
 	assert.Equal(t, "*", deps["prosqlite"])
+	assert.Equal(t, "*", deps["http"])
 }
 
 func TestScanDeps_CommentedOutDirective(t *testing.T) {
 	dir := t.TempDir()
 	writePl(t, dir, "main.pl", `% :- use_module(library(fake_dep)).
   % :- use_module(library(another_fake)).
-:- use_module(library(clpfd)).
+:- use_module(library(prosqlite)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
 	assert.Len(t, deps, 1)
-	assert.Equal(t, "*", deps["clpfd"])
+	assert.Equal(t, "*", deps["prosqlite"])
 }
 
 func TestScanDeps_BuiltinDcg(t *testing.T) {
@@ -163,12 +163,12 @@ func TestScanDeps_SkipsHiddenDirectories(t *testing.T) {
 	writePl(t, hiddenDir, "pre-commit.pl", `:- use_module(library(somepkg)).
 `)
 	// Place a valid .pl file in the visible tree.
-	writePl(t, dir, "main.pl", `:- use_module(library(clpfd)).
+	writePl(t, dir, "main.pl", `:- use_module(library(prosqlite)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
 	assert.Len(t, deps, 1)
-	assert.Equal(t, "*", deps["clpfd"])
+	assert.Equal(t, "*", deps["prosqlite"])
 	// somepkg from .git/ should NOT appear.
 	assert.Empty(t, deps["somepkg"])
 }
@@ -178,22 +178,22 @@ func TestScanDeps_SkipsHiddenDirectories(t *testing.T) {
 func TestScanDeps_MultiLineDirective(t *testing.T) {
 	dir := t.TempDir()
 	writePl(t, dir, "main.pl", `:- use_module(
-    library(clpfd)
+    library(prosqlite)
 ).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"clpfd": "*"}, deps)
+	assert.Equal(t, map[string]string{"prosqlite": "*"}, deps)
 }
 
 func TestScanDeps_MultiLineCompact(t *testing.T) {
 	dir := t.TempDir()
 	writePl(t, dir, "main.pl", `:- use_module(
-library(clpfd)).
+library(prosqlite)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"clpfd": "*"}, deps)
+	assert.Equal(t, map[string]string{"prosqlite": "*"}, deps)
 }
 
 func TestScanDeps_MultiLineBuiltinSkipped(t *testing.T) {
@@ -220,7 +220,7 @@ func TestScanDeps_MultiLineNestedPath(t *testing.T) {
 
 func TestScanDeps_MixedSingleAndMultiLine(t *testing.T) {
 	dir := t.TempDir()
-	writePl(t, dir, "main.pl", `:- use_module(library(clpfd)).
+	writePl(t, dir, "main.pl", `:- use_module(library(http/http_client)).
 :- use_module(
     library(prosqlite)
 ).
@@ -228,7 +228,7 @@ func TestScanDeps_MixedSingleAndMultiLine(t *testing.T) {
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "*", deps["clpfd"])
+	assert.Equal(t, "*", deps["http"])
 	assert.Equal(t, "*", deps["prosqlite"])
 	assert.Len(t, deps, 2) // lists is built-in
 }
@@ -240,11 +240,11 @@ func TestScanDeps_MultiLineAbandoned(t *testing.T) {
 	writePl(t, dir, "main.pl", `:- use_module(
     some_garbage_that_never_closes
     more_garbage
-:- use_module(library(clpfd)).
+:- use_module(library(prosqlite)).
 `)
 	deps, err := ScanDeps(dir)
 	require.NoError(t, err)
-	// clpfd may or may not be detected depending on buffering, but no crash.
+	// prosqlite may or may not be detected depending on buffering, but no crash.
 	assert.NoError(t, err)
 	_ = deps
 }
@@ -253,6 +253,7 @@ func TestScanDeps_MultiLineAbandoned(t *testing.T) {
 
 func TestSwiBuiltins_CoreEntriesPresent(t *testing.T) {
 	core := []string{
+		"clpfd",
 		"lists", "apply", "assoc", "pairs", "ordsets", "plunit",
 		"system", "readutil", "aggregate", "dcg/basics", "random",
 		"csv", "socket", "thread", "url",

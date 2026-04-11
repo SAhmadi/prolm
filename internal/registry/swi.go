@@ -108,8 +108,7 @@ func (r *SWIRegistry) Versions(ctx context.Context, name string) ([]PackageVersi
 		return nil, err
 	}
 
-	path := "/pack/list?p=" + url.QueryEscape(name)
-	body, err := r.fetch(ctx, path)
+	body, err := r.fetch(ctx, "/pack/list", url.Values{"p": []string{name}})
 	if err != nil {
 		return nil, fmt.Errorf("fetching pack detail for %q: %w", name, err)
 	}
@@ -195,7 +194,7 @@ func (r *SWIRegistry) cachedPackList(ctx context.Context) ([]PackageVersion, err
 	}
 	r.mu.Unlock()
 
-	body, err := r.fetch(ctx, "/pack/list")
+	body, err := r.fetch(ctx, "/pack/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetching pack list: %w", err)
 	}
@@ -219,14 +218,18 @@ func (r *SWIRegistry) cachedPackList(ctx context.Context) ([]PackageVersion, err
 const maxRegistryResponseBytes = 10 * 1024 * 1024 // 10 MB
 
 // fetch performs an HTTP GET with caching, rate-limit retries, and context support.
-func (r *SWIRegistry) fetch(ctx context.Context, path string) (io.ReadCloser, error) {
+func (r *SWIRegistry) fetch(ctx context.Context, path string, query url.Values) (io.ReadCloser, error) {
 	// BUG-003: use url.JoinPath so a trailing slash on baseURL and a leading
 	// slash on path never produce a double-slash URL.
 	u, err := url.Parse(r.baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", err)
 	}
-	fullURL := u.JoinPath(path).String()
+	joined := u.JoinPath(path)
+	if query != nil {
+		joined.RawQuery = query.Encode()
+	}
+	fullURL := joined.String()
 
 	// Check cache first.
 	var cached *cacheEntry
@@ -594,4 +597,3 @@ func isDownloadURL(href string) bool {
 		strings.HasSuffix(lower, ".tar.gz") ||
 		strings.HasSuffix(lower, ".zip")
 }
-

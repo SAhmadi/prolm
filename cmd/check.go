@@ -53,7 +53,7 @@ func init() {
 	rootCmd.AddCommand(checkCmd)
 	checkCmd.Flags().Bool("strict", false, "Treat warnings as errors")
 	checkCmd.Flags().Bool("no-deps", false, "Analyse project source only; do not load dependency modules")
-	checkCmd.Flags().Duration("timeout", 30*time.Second, "Per-invocation timeout (default 30s)")
+	checkCmd.Flags().Duration("timeout", 30*time.Second, "Per-invocation timeout")
 }
 
 func (r *checkCmdRunner) run(cmd *cobra.Command, args []string) error {

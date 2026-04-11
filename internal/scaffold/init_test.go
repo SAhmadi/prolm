@@ -114,6 +114,7 @@ func TestInitProject_ScanFindsDeps(t *testing.T) {
 	projectDir := filepath.Join(dir, "scan-test")
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "src"), 0755))
 	writePl(t, projectDir, "src/main.pl", `:- use_module(library(clpfd)).
+:- use_module(library(prosqlite)).
 :- use_module(library(lists)).
 main :- true.
 `)
@@ -124,7 +125,8 @@ main :- true.
 	pf, err := manifest.Load(filepath.Join(projectDir, "Prolfile.toml"), manifest.LoadOptions{})
 	require.NoError(t, err)
 
-	assert.Equal(t, "*", pf.Dependencies["clpfd"])
+	assert.Equal(t, "*", pf.Dependencies["prosqlite"])
+	assert.NotContains(t, pf.Dependencies, "clpfd") // built-in
 	assert.NotContains(t, pf.Dependencies, "lists") // built-in
 }
 
