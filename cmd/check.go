@@ -37,7 +37,7 @@ TRUST BOUNDARY: prolm check invokes the Prolog runtime, which executes
 initialization directives (:- initialization/1), term_expansion/2, and
 goal_expansion/2 hooks present in the project source and its locked
 dependencies. It does NOT sandbox execution. Only run prolm check on
-projects and dependencies you trust. See CLAUDE.md §8.15 and §8.22.
+projects and dependencies you trust.
 
 Use --no-deps to analyse only the project source files without loading
 dependency modules (reduces execution scope at the cost of cross-module

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -56,4 +57,56 @@ func TestExecute_Help(t *testing.T) {
 	assert.Contains(t, out, "--verbose")
 	assert.Contains(t, out, "--no-color")
 	assert.Contains(t, out, "--json")
+}
+
+func TestExecute_HelpWithGlobalFlag(t *testing.T) {
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+		rootCmd.SetArgs(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"--no-color", "--help"})
+	err := Execute()
+	require.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "Usage:")
+	assert.Contains(t, out, "--no-color")
+	assert.Contains(t, out, "Available Commands:")
+}
+
+func TestExecute_CompletionHelp(t *testing.T) {
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+		rootCmd.SetArgs(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"completion", "--help"})
+	err := Execute()
+	require.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "Generate the autocompletion script")
+	assert.Contains(t, out, "bash")
+	assert.Contains(t, out, "zsh")
+	assert.Contains(t, out, "fish")
+}
+
+func TestCommandCentralDocTracksPublicSurface(t *testing.T) {
+	data, err := os.ReadFile("../docs/command-central.md")
+	require.NoError(t, err)
+
+	doc := string(data)
+	assert.Contains(t, doc, "prolm completion")
+	assert.Contains(t, doc, "Status: `Available`")
+	assert.Contains(t, doc, "Status: `Phase 1.5`")
+	assert.Contains(t, doc, "prolm add <name|url>")
 }
