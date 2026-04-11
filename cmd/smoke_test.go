@@ -153,7 +153,13 @@ func TestSmoke_New_MissingName_ShowsArgumentError(t *testing.T) {
 		"NO_COLOR=1",
 	)
 
-	out, _ := runSmokeCommandExpectError(t, binPath, workspace, env, "new")
+	out, err := runSmokeCommandExpectError(t, binPath, workspace, env, "new")
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	assert.NotZero(t, exitErr.ExitCode())
+
 	assert.Contains(t, out, "accepts 1 arg")
 	assert.Contains(t, out, "prolm new <name>")
+	assert.Contains(t, out, "Usage:")
+	assert.NotContains(t, out, "Created project")
 }
