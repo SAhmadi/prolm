@@ -17,6 +17,22 @@ It provides dependency management, reproducible builds, and a unified
 workflow across SWI-Prolog, GNU Prolog, and Scryer Prolog.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Bare global-flag invocation contract (Phase 1.5):
+		// running `prolm --no-color` (or similar) with no subcommand should
+		// clearly explain what happened, then show help.
+		if len(args) == 0 {
+			if cmd.Flags().Lookup("no-color").Changed ||
+				cmd.Flags().Lookup("json").Changed ||
+				cmd.Flags().Lookup("verbose").Changed ||
+				cmd.Flags().Lookup("runtime").Changed ||
+				cmd.Flags().Lookup("config").Changed {
+				_, _ = cmd.OutOrStdout().Write([]byte("No command specified; showing help.\n\n"))
+			}
+			return cmd.Help()
+		}
+		return nil
+	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Bind all flags (persistent + local) into Viper so they are
 		// accessible via viper.GetString/GetBool throughout internal packages.

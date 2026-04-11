@@ -379,71 +379,71 @@ This is the most security-critical sub-phase.
 
 ### 1.5.2 — Shell completion and discoverability (macOS + Linux)
 
-- [ ] Document `prolm completion` as part of the public CLI surface
-- [ ] Validate generated completion scripts on:
+- [x] Document `prolm completion` as part of the public CLI surface
+- [x] Validate generated completion scripts on:
   - macOS `zsh`
   - Linux `bash`
   - Linux `zsh`
-- [ ] Document installation/setup steps for shell completion on macOS and Linux
-- [ ] Defer Windows completion to the future Windows-support phase
+- [x] Document installation/setup steps for shell completion on macOS and Linux
+- [x] Defer Windows completion to the future Windows-support phase
 
 ### 1.5.3 — Root/global flag UX hardening
 
-- [ ] Define and test expected behavior for bare global-flag invocations such as `prolm --no-color`
-- [ ] Ensure global flags work cleanly with `-h` / `--help`
-- [ ] When help is shown with active global toggles, provide clear user-oriented messaging where practical
+- [x] Define and test expected behavior for bare global-flag invocations such as `prolm --no-color`
+- [x] Ensure global flags work cleanly with `-h` / `--help`
+- [x] When help is shown with active global toggles, provide clear user-oriented messaging where practical
 
 ### 1.5.4 — Help output and stub-flag consistency
 
-- [ ] Remove internal authoring references from all user-facing help and errors
+- [x] Remove internal authoring references from all user-facing help and errors
   - No mentions of `CLAUDE.md`, Codex, ChatGPT, or similar in CLI output
-- [ ] Mark stubbed or not-yet-implemented flags consistently in help text
-- [ ] Define expected behavior for mixed flag combinations involving stubbed flags
+- [x] Mark stubbed or not-yet-implemented flags consistently in help text
+- [x] Define expected behavior for mixed flag combinations involving stubbed flags
 
 ### 1.5.5 — Command-surface documentation
 
-- [ ] Add `docs/command-central.md` as the canonical command matrix
-- [ ] For each command, document:
+- [x] Add `docs/command-central.md` as the canonical command matrix
+- [x] For each command, document:
   - positional arguments
   - local flags
   - global flags
   - examples
   - expected output shape
   - implementation status
-- [ ] Use durable text statuses:
+- [x] Use durable text statuses:
   - `Available`
   - `Phase 1.5`
   - `Phase 2`
   - `Stubbed`
   - `Not implemented`
-- [ ] Keep this doc suitable for future website docs and CLI acceptance-test planning
+- [x] Keep this doc suitable for future website docs and CLI acceptance-test planning
 
 ### 1.5.6 — Pre-registry dependency add/remove UX
 
-- [ ] Use `prolm add <name|url>` as the first remote dependency workflow before the registry exists
-- [ ] Support:
+- [x] Use `prolm add <name|url>` as the first remote dependency workflow before the registry exists
+- [x] Support:
   - SWI package names
   - direct SWI package URLs
   - GitHub URLs for Prolog packages
-- [ ] Successful `add` should update `Prolfile.toml`, install the package, and write `Prolfile.lock`
-- [ ] Add `prolm remove <pack>` in the same phase so dependency lifecycle is symmetric
+- [x] Successful `add` should update `Prolfile.toml`, install the package, and write `Prolfile.lock`
+- [x] Add `prolm remove <pack>` in the same phase so dependency lifecycle is symmetric
   - remove from `[dependencies]` by default
   - once `--dev` exists, allow removing from `[dev-dependencies]`
   - if package is not declared, return an actionable error/hint
-- [ ] Keep `prolm install` manifest-driven in Phase 1 / Phase 1.5
+- [x] Keep `prolm install` manifest-driven in Phase 1 / Phase 1.5
   - no separate `prolm uninstall` command for project dependencies in this phase
 
 ### 1.5.7 — Regression coverage
 
-- [ ] Add subprocess/built-binary tests for `prolm new` missing-name behavior
-- [ ] Add help-output tests for:
+- [x] Add subprocess/built-binary tests for `prolm new` missing-name behavior
+- [x] Add help-output tests for:
   - root help
   - root help with global flags
   - `new --help`
   - `check -h`
   - `completion --help`
-- [ ] Add assertions that user-facing help contains no internal-document references
-- [ ] Add doc checks or snapshot-style coverage to keep `docs/command-central.md` aligned with the live CLI
+- [x] Add assertions that user-facing help contains no internal-document references
+- [x] Add doc checks or snapshot-style coverage to keep `docs/command-central.md` aligned with the live CLI
 
 ---
 

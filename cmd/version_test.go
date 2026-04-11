@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -100,6 +101,28 @@ func TestExecute_CompletionHelp(t *testing.T) {
 	assert.Contains(t, out, "fish")
 }
 
+func TestExecute_CompletionScripts_BashAndZsh(t *testing.T) {
+	binPath := buildSmokeBinary(t)
+	workspace := t.TempDir()
+	homeDir := filepath.Join(workspace, "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0755))
+	env := append(os.Environ(), "HOME="+homeDir, "NO_COLOR=1")
+
+	for _, shell := range []string{"bash", "zsh"} {
+		t.Run(shell, func(t *testing.T) {
+			out := runSmokeCommand(t, binPath, workspace, env, "completion", shell)
+			assert.NotEmpty(t, out)
+			assert.Contains(t, out, "prolm")
+			if shell == "bash" {
+				assert.Contains(t, out, "complete")
+			}
+			if shell == "zsh" {
+				assert.Contains(t, out, "#compdef")
+			}
+		})
+	}
+}
+
 func TestExecute_UnknownCommand_ShowsRootUsage(t *testing.T) {
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
@@ -127,6 +150,10 @@ func TestCommandCentralDocTracksPublicSurface(t *testing.T) {
 	doc := string(data)
 	assert.Contains(t, doc, "prolm completion")
 	assert.Contains(t, doc, "Status: `Available`")
-	assert.Contains(t, doc, "Status: `Phase 1.5`")
 	assert.Contains(t, doc, "prolm add <name|url>")
+	assert.Contains(t, doc, "prolm remove <pack>")
+	assert.Contains(t, doc, "macOS (zsh)")
+	assert.Contains(t, doc, "Linux (bash)")
+	assert.Contains(t, doc, "Linux (zsh)")
+	assert.Contains(t, doc, "Windows completion setup is deferred")
 }
