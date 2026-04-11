@@ -384,7 +384,6 @@ This is the most security-critical sub-phase.
   - macOS `zsh`
   - Linux `bash`
   - Linux `zsh`
-  - `fish` where practical on macOS/Linux
 - [ ] Document installation/setup steps for shell completion on macOS and Linux
 - [ ] Defer Windows completion to the future Windows-support phase
 
