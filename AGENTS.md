@@ -94,13 +94,13 @@ Creates a new project in a new directory.
 prolm new <name> [flags]
 
 Flags:
-  --template string   Project template: app | library | cli  (default: app)
+  --template string   Project template: app (available now) | library (Phase 2) | cli (Phase 2)  (default: app)
   --runtime string    Target runtime: swi | gnu | scryer      (default: swi)
 
 Examples:
   prolm new my-expert-system
-  prolm new my-library --template library
-  prolm new my-cli --template cli --runtime scryer
+  prolm new my-app --template app
+  prolm new my-app --runtime scryer
 ```
 
 **What it creates (app template):**
@@ -115,6 +115,22 @@ Examples:
 └── tests/
     └── main_test.pl
 ```
+
+---
+
+### prolm completion
+
+Generates shell-completion scripts for supported shells.
+
+```
+prolm completion [bash|zsh|fish|powershell]
+
+Examples:
+  prolm completion zsh
+  prolm completion bash
+```
+
+**Current status:** command exists today. Setup and discoverability for macOS and Linux should be polished in Phase 1.5.
 
 ---
 
@@ -158,6 +174,8 @@ Examples:
 - If `Prolfile.lock` exists and is up to date: fast path, just verify local store
 - If `Prolfile.lock` is absent or stale: resolve → fetch → write lock
 - Never overwrites an existing lock without the user's `prolm update`
+- Follows a cargo-style project flow: `prolm add` / `prolm remove` mutate dependencies, while `prolm install` syncs from manifest+lock
+- `prolm install` is manifest-driven in MVP/Phase 1.5 (no package-name/URL positional install and no separate `prolm uninstall`)
 
 ---
 
@@ -179,6 +197,8 @@ Examples:
   prolm add prosqlite --exact
 ```
 
+**Current status:** planned command. The first pre-registry implementation path is expected to land in Phase 1.5 using `prolm add <name|url>`.
+
 ---
 
 ### prolm remove
@@ -191,6 +211,8 @@ prolm remove <pack> [flags]
 Examples:
   prolm remove clpfd
 ```
+
+**Current status:** planned command, paired with `prolm add` for Phase 1.5 dependency lifecycle symmetry. `prolm remove` is the canonical removal command (no separate `prolm uninstall`).
 
 ---
 
@@ -868,7 +890,7 @@ prolm check            # no warnings
 - Full MVS dependency resolution with semver constraint solving
 - Lockfile staleness detection (`prolm install` detects drift)
 - `--frozen` flag for CI
-- `prolm add` / `prolm remove` / `prolm update`
+- Dependency command hardening: full `prolm add` / `prolm remove` flag support and `prolm update`
 - `prolm repl`
 - GNU Prolog runtime support
 - Scryer Prolog runtime support

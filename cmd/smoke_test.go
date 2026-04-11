@@ -80,6 +80,30 @@ func runSmokeCommand(t *testing.T, binPath, dir string, env []string, args ...st
 	return combined
 }
 
+func runSmokeCommandExpectError(t *testing.T, binPath, dir string, env []string, args ...string) (string, error) {
+	t.Helper()
+
+	cmd := exec.Command(binPath, args...)
+	cmd.Dir = dir
+	cmd.Env = env
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	combined := stdout.String()
+	if stderr.Len() > 0 {
+		if combined != "" && !strings.HasSuffix(combined, "\n") {
+			combined += "\n"
+		}
+		combined += stderr.String()
+	}
+
+	require.Error(t, err, "command was expected to fail: %s %s", binPath, strings.Join(args, " "))
+	return combined, err
+}
+
 func TestSmoke_EndToEndPhase1Acceptance(t *testing.T) {
 	if _, err := exec.LookPath("swipl"); err != nil {
 		t.Fatalf("swipl is required for the Phase 1 smoke test: %v", err)
@@ -116,4 +140,20 @@ func TestSmoke_EndToEndPhase1Acceptance(t *testing.T) {
 
 	checkOut := runSmokeCommand(t, binPath, projectDir, env, "check")
 	assert.Contains(t, checkOut, "0 error(s), 0 warning(s)")
+}
+
+func TestSmoke_New_MissingName_ShowsArgumentError(t *testing.T) {
+	binPath := buildSmokeBinary(t)
+	workspace := t.TempDir()
+	homeDir := filepath.Join(workspace, "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0755))
+
+	env := append(os.Environ(),
+		"HOME="+homeDir,
+		"NO_COLOR=1",
+	)
+
+	out, _ := runSmokeCommandExpectError(t, binPath, workspace, env, "new")
+	assert.Contains(t, out, "accepts 1 arg")
+	assert.Contains(t, out, "prolm new <name>")
 }

@@ -11,7 +11,14 @@ var newCmd = &cobra.Command{
 	Long: `Create a new Prolog project in a new directory.
 
 The project is initialized with a Prolfile.toml, source files, test files,
-and a git repository.`,
+and a git repository.
+
+Templates:
+  app      Available now. Creates an executable-style project with src/main.pl
+           and a matching test file.
+  library  Planned for Phase 2. Will create a reusable module/library layout.
+  cli      Planned for Phase 2. Will create a command-line oriented project
+           with argument handling patterns.`,
 	Example: `  prolm new my-expert-system
   prolm new my-app --template app
   prolm new my-app --runtime scryer`,
@@ -25,7 +32,7 @@ and a git repository.`,
 }
 
 func init() {
-	newCmd.Flags().String("template", "app", "project template: app | library | cli")
+	newCmd.Flags().String("template", "app", "project template: app (available now) | library (Phase 2) | cli (Phase 2)")
 	newCmd.Flags().String("runtime", "swi", "target runtime: swi | gnu | scryer")
 	rootCmd.AddCommand(newCmd)
 }

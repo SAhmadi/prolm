@@ -365,6 +365,89 @@ This is the most security-critical sub-phase.
 
 ---
 
+## Phase 1.5: "CLI UX and Command Contract Hardening"
+
+### 1.5.1 — `prolm new` UX verification and help copy
+
+- [ ] Verify shipped-binary behavior for `prolm new` with a missing `<name>`
+  - This is already enforced in code via `cobra.ExactArgs(1)` and covered in `cmd/new_test.go`
+  - If a release binary still appears to no-op, fix the packaging/invocation path so users see a clear error and usage text
+- [ ] Expand `prolm new --help` to explain the difference between `app`, `library`, and `cli`
+  - `app` is available in Phase 1 / Phase 1.5
+  - `library` and `cli` remain Phase 2 work
+- [ ] Keep `prolm new <name>` required; do not add a silent no-op path
+
+### 1.5.2 — Shell completion and discoverability (macOS + Linux)
+
+- [ ] Document `prolm completion` as part of the public CLI surface
+- [ ] Validate generated completion scripts on:
+  - macOS `zsh`
+  - Linux `bash`
+  - Linux `zsh`
+  - `fish` where practical on macOS/Linux
+- [ ] Document installation/setup steps for shell completion on macOS and Linux
+- [ ] Defer Windows completion to the future Windows-support phase
+
+### 1.5.3 — Root/global flag UX hardening
+
+- [ ] Define and test expected behavior for bare global-flag invocations such as `prolm --no-color`
+- [ ] Ensure global flags work cleanly with `-h` / `--help`
+- [ ] When help is shown with active global toggles, provide clear user-oriented messaging where practical
+
+### 1.5.4 — Help output and stub-flag consistency
+
+- [ ] Remove internal authoring references from all user-facing help and errors
+  - No mentions of `CLAUDE.md`, Codex, ChatGPT, or similar in CLI output
+- [ ] Mark stubbed or not-yet-implemented flags consistently in help text
+- [ ] Define expected behavior for mixed flag combinations involving stubbed flags
+
+### 1.5.5 — Command-surface documentation
+
+- [ ] Add `docs/command-central.md` as the canonical command matrix
+- [ ] For each command, document:
+  - positional arguments
+  - local flags
+  - global flags
+  - examples
+  - expected output shape
+  - implementation status
+- [ ] Use durable text statuses:
+  - `Available`
+  - `Phase 1.5`
+  - `Phase 2`
+  - `Stubbed`
+  - `Not implemented`
+- [ ] Keep this doc suitable for future website docs and CLI acceptance-test planning
+
+### 1.5.6 — Pre-registry dependency add/remove UX
+
+- [ ] Use `prolm add <name|url>` as the first remote dependency workflow before the registry exists
+- [ ] Support:
+  - SWI package names
+  - direct SWI package URLs
+  - GitHub URLs for Prolog packages
+- [ ] Successful `add` should update `Prolfile.toml`, install the package, and write `Prolfile.lock`
+- [ ] Add `prolm remove <pack>` in the same phase so dependency lifecycle is symmetric
+  - remove from `[dependencies]` by default
+  - once `--dev` exists, allow removing from `[dev-dependencies]`
+  - if package is not declared, return an actionable error/hint
+- [ ] Keep `prolm install` manifest-driven in Phase 1 / Phase 1.5
+  - no separate `prolm uninstall` command for project dependencies in this phase
+
+### 1.5.7 — Regression coverage
+
+- [ ] Add subprocess/built-binary tests for `prolm new` missing-name behavior
+- [ ] Add help-output tests for:
+  - root help
+  - root help with global flags
+  - `new --help`
+  - `check -h`
+  - `completion --help`
+- [ ] Add assertions that user-facing help contains no internal-document references
+- [ ] Add doc checks or snapshot-style coverage to keep `docs/command-central.md` aligned with the live CLI
+
+---
+
 ## Phase 2: "Production hardening"
 
 ### 2.1 — Semver resolution and MVS algorithm
@@ -394,11 +477,12 @@ This is the most security-critical sub-phase.
 
 **Security:** SEC-8.
 
-### 2.3 — `prolm add`, `prolm remove`, `prolm update`
+### 2.3 — Dependency command hardening (`add`/`remove`/`update`)
 
-- [ ] `cmd/add.go` — add dep to Prolfile.toml, re-resolve, re-install, write lock
+- [ ] Extend `cmd/add.go` with full flag support and polish
   - `--dev`, `--exact` flags
-- [ ] `cmd/remove.go` — remove from Prolfile.toml, re-resolve, write lock
+- [ ] Extend `cmd/remove.go` with full flag support and polish
+  - `--dev` support for `[dev-dependencies]`
 - [ ] `cmd/update.go` — update one or all deps within semver constraints
   - `--breaking` allows major version bumps
 - [ ] Deterministic TOML serialization in all writes (per 8.28)

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -41,7 +42,44 @@ workflow across SWI-Prolog, GNU Prolog, and Scryer Prolog.`,
 
 // Execute is the entry point called from main.go.
 func Execute() error {
-	return rootCmd.Execute()
+	executedCmd, err := rootCmd.ExecuteC()
+	if err != nil {
+		printCommandError(executedCmd, err)
+	}
+	return err
+}
+
+func printCommandError(executedCmd *cobra.Command, err error) {
+	_, _ = rootCmd.ErrOrStderr().Write([]byte(err.Error() + "\n"))
+	if isUsageError(err) {
+		usageCmd := usageCommand(executedCmd)
+		_, _ = rootCmd.ErrOrStderr().Write([]byte("\n" + usageCmd.UsageString()))
+	}
+}
+
+func usageCommand(executedCmd *cobra.Command) *cobra.Command {
+	if executedCmd != nil {
+		return executedCmd
+	}
+	return rootCmd
+}
+
+func isUsageError(err error) bool {
+	msg := err.Error()
+	for _, marker := range []string{
+		"unknown command",
+		"unknown flag",
+		"accepts ",
+		"requires at least",
+		"requires at most",
+		"requires exactly",
+		"argument",
+	} {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {
