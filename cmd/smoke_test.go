@@ -59,22 +59,7 @@ func buildSmokeBinary(t *testing.T) string {
 func runSmokeCommand(t *testing.T, binPath, dir string, env []string, args ...string) string {
 	t.Helper()
 
-	cmd := exec.Command(binPath, args...)
-	cmd.Dir = dir
-	cmd.Env = env
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	combined := stdout.String()
-	if stderr.Len() > 0 {
-		if combined != "" && !strings.HasSuffix(combined, "\n") {
-			combined += "\n"
-		}
-		combined += stderr.String()
-	}
+	combined, err := runSmokeCommandRaw(binPath, dir, env, args...)
 
 	require.NoErrorf(t, err, "command failed: %s %s\noutput:\n%s", binPath, strings.Join(args, " "), combined)
 	return combined
@@ -83,6 +68,12 @@ func runSmokeCommand(t *testing.T, binPath, dir string, env []string, args ...st
 func runSmokeCommandExpectError(t *testing.T, binPath, dir string, env []string, args ...string) (string, error) {
 	t.Helper()
 
+	combined, err := runSmokeCommandRaw(binPath, dir, env, args...)
+	require.Error(t, err, "command was expected to fail: %s %s", binPath, strings.Join(args, " "))
+	return combined, err
+}
+
+func runSmokeCommandRaw(binPath, dir string, env []string, args ...string) (string, error) {
 	cmd := exec.Command(binPath, args...)
 	cmd.Dir = dir
 	cmd.Env = env
@@ -100,7 +91,6 @@ func runSmokeCommandExpectError(t *testing.T, binPath, dir string, env []string,
 		combined += stderr.String()
 	}
 
-	require.Error(t, err, "command was expected to fail: %s %s", binPath, strings.Join(args, " "))
 	return combined, err
 }
 
