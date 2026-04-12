@@ -40,6 +40,7 @@ var swiBuiltins = map[string]bool{
 	"broadcast":          true,
 	"char_type":          true,
 	"check":              true,
+	"clpfd":              true,
 	"csv":                true,
 	"debug":              true,
 	"dicts":              true,

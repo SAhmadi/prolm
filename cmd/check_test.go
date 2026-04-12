@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,6 +58,16 @@ func TestExecute_Check_TimeoutFlag_ForwardedToChecker(t *testing.T) {
 	assert.True(t, gotDeadline.After(now), "deadline must be in the future")
 	assert.True(t, gotDeadline.Before(now.Add(6*time.Second)),
 		"deadline must be ~5s from now, not the 30s default; got %v", gotDeadline)
+}
+
+func TestExecute_Check_Help_TimeoutDefaultShownOnce(t *testing.T) {
+	resetCheckCmd(t)
+	buf := resetRootCmd(t)
+	rootCmd.SetArgs([]string{"check", "--help"})
+	require.NoError(t, Execute())
+
+	help := buf.String()
+	assert.Equal(t, 1, strings.Count(help, "(default 30s)"))
 }
 
 func withCheckCmdRunner(t *testing.T, r *checkCmdRunner) {

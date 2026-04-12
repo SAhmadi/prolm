@@ -47,9 +47,21 @@ func init() {
 	testCmd.Flags().String("filter", "", "Only run tests whose name matches this substring")
 	testCmd.Flags().Bool("verbose", false, "Print each passing test, not just failures")
 	testCmd.Flags().Duration("timeout", 30*time.Second, "Per-invocation timeout")
+	testCmd.Flags().Bool("watch", false, "[Phase 2] Re-run tests on file changes (not yet implemented)")
+	testCmd.Flags().Bool("coverage", false, "[Phase 3] Emit predicate coverage report (not yet implemented)")
 }
 
 func (r *testCmdRunner) run(cmd *cobra.Command, args []string) error {
+	for _, flag := range []string{"watch", "coverage"} {
+		if f := cmd.Flags().Lookup(flag); f != nil && f.Changed {
+			phase := "Phase 2"
+			if flag == "coverage" {
+				phase = "Phase 3"
+			}
+			return fmt.Errorf("--%s is not yet implemented; it will be available in %s", flag, phase)
+		}
+	}
+
 	pf, manifestPath, err := loadManifest(cmd)
 	if err != nil {
 		return err

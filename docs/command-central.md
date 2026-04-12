@@ -25,9 +25,8 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - `-h, --help`
 - Current behavior:
   - With no subcommand, prints root help
+  - With only global flags and no subcommand (for example `prolm --no-color`), prints a short guidance line then root help
   - Global flags can be combined with help, for example `prolm --no-color --help`
-- Phase 1.5 follow-up:
-  - tighten UX for bare global-flag invocations such as `prolm --no-color`
 
 ## Project Setup
 
@@ -98,28 +97,32 @@ Canonical command-surface reference for the current CLI, future website docs, an
 
 ### `prolm add <name|url>`
 
-- Status: `Phase 1.5`
+- Status: `Available`
 - Purpose: first pre-registry workflow for adding a dependency from a package name or remote source
-- Planned inputs:
+- Inputs:
   - SWI package name
-  - direct SWI package URL
+  - direct SWI URL
   - GitHub URL
-- Planned behavior:
+- Current behavior:
   - update `Prolfile.toml`
   - install the dependency
   - write/update `Prolfile.lock`
+- Notes:
+  - SWI listing URLs are normalized to package-name installs
+  - direct archive URLs are installed via URL override
 - Future flags:
   - `--dev` — `Phase 2`
   - `--exact` — `Phase 2`
 
 ### `prolm remove <pack>`
 
-- Status: `Phase 1.5`
+- Status: `Available`
 - Purpose: remove a dependency from the project manifest and sync lock/install state
-- Planned behavior:
+- Current behavior:
   - remove from `[dependencies]` by default
-  - once `--dev` exists, support removal from `[dev-dependencies]`
   - return a clear error/hint if the package is not declared
+- Future behavior:
+  - once `--dev` exists, support removal from `[dev-dependencies]`
 - Notes:
   - `remove` is the canonical dependency-removal command
   - no `uninstall` alias in Phase 1.5
@@ -187,10 +190,22 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - `prolm completion zsh`
   - `prolm completion bash`
   - `prolm completion fish`
-- Phase 1.5 follow-up:
-  - document setup for macOS and Linux
-  - validate generated completion on macOS `zsh`, Linux `bash`, Linux `zsh`, and optionally `fish`
-  - defer Windows polish until Windows support work
+- Setup:
+  - macOS (zsh):
+    - `mkdir -p ~/.zsh/completions`
+    - `prolm completion zsh > ~/.zsh/completions/_prolm`
+    - ensure `fpath=(~/.zsh/completions $fpath)` and `autoload -Uz compinit && compinit` are in `~/.zshrc`
+  - Linux (bash):
+    - `mkdir -p ~/.local/share/bash-completion/completions`
+    - `prolm completion bash > ~/.local/share/bash-completion/completions/prolm`
+    - reload shell (or `source ~/.bashrc`)
+  - Linux (zsh):
+    - `mkdir -p ~/.local/share/zsh/site-functions`
+    - `prolm completion zsh > ~/.local/share/zsh/site-functions/_prolm`
+    - ensure that directory is in `fpath`, then run `autoload -Uz compinit && compinit`
+- Validation coverage:
+  - generated completion verified for macOS `zsh`, Linux `bash`, and Linux `zsh`
+  - Windows completion setup is deferred to the Windows support phase
 
 ## Version and Help
 

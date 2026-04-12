@@ -1927,6 +1927,13 @@ var resolveTests = []struct {
 // Unit tests mock the registry interface
 ```
 
+#### Test file naming rule
+
+- Test file names must describe the feature/behavior under test and must **not**
+  include implementation-phase labels (for example `phase15_*`, `phase2_*`).
+- Prefer durable names such as `command_contract_test.go`,
+  `install_flags_test.go`, or `runtime_detection_test.go`.
+
 ---
 
 ## 11. Testing Strategy

@@ -19,6 +19,8 @@ func resetTestCmd(t *testing.T) {
 	testCmd.Flags().String("filter", "", "")
 	testCmd.Flags().Bool("verbose", false, "")
 	testCmd.Flags().Duration("timeout", 30*time.Second, "")
+	testCmd.Flags().Bool("watch", false, "")
+	testCmd.Flags().Bool("coverage", false, "")
 }
 
 func withTestCmdRunner(t *testing.T, r *testCmdRunner) {
@@ -135,3 +137,32 @@ func TestExecute_Test_RejectsBadFilter(t *testing.T) {
 	assert.Contains(t, err.Error(), "filter")
 }
 
+func TestExecute_Test_StubFlags(t *testing.T) {
+	for _, tc := range []struct {
+		flag  string
+		phase string
+	}{
+		{flag: "--watch", phase: "Phase 2"},
+		{flag: "--coverage", phase: "Phase 3"},
+	} {
+		t.Run(tc.flag, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+			storeDir := filepath.Join(dir, "store")
+			writeRunProject(t, dir, storeDir)
+			testFile := filepath.Join(dir, "tests", "main_test.pl")
+			require.NoError(t, os.MkdirAll(filepath.Dir(testFile), 0755))
+			require.NoError(t, os.WriteFile(testFile, []byte(""), 0644))
+
+			fr := &fakeRuntime{}
+			withTestCmdRunner(t, newFakeTestRunner(storeDir, fr, "", []string{testFile}))
+			resetTestCmd(t)
+			resetRootCmd(t)
+			rootCmd.SetArgs([]string{"test", tc.flag})
+			err := Execute()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not yet implemented")
+			assert.Contains(t, err.Error(), tc.phase)
+		})
+	}
+}

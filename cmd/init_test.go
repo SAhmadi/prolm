@@ -83,6 +83,7 @@ func TestExecute_Init_WithScan(t *testing.T) {
 	require.NoError(t, os.WriteFile(
 		filepath.Join(projectDir, "src", "main.pl"),
 		[]byte(`:- use_module(library(clpfd)).
+:- use_module(library(prosqlite)).
 main :- true.
 `),
 		0644,
@@ -104,7 +105,8 @@ main :- true.
 
 	data, readErr := os.ReadFile(filepath.Join(projectDir, "Prolfile.toml"))
 	require.NoError(t, readErr)
-	assert.Contains(t, string(data), "clpfd")
+	assert.Contains(t, string(data), "prosqlite")
+	assert.NotContains(t, string(data), "clpfd")
 }
 
 func TestExecute_Init_NoScan(t *testing.T) {
