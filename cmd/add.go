@@ -18,11 +18,10 @@ import (
 )
 
 type addTarget struct {
-	Name            string
-	SourceURL       string
-	SourceVersion   string
-	GitHubRepoRef   string
-	PinAfterInstall bool
+	Name          string
+	SourceURL     string
+	SourceVersion string
+	GitHubRepoRef string
 }
 
 type addRunner struct {
@@ -98,9 +97,6 @@ func (r *addRunner) run(cmd *cobra.Command, args []string) error {
 	if err := manifest.Validate(pf); err != nil {
 		return fmt.Errorf("updating Prolfile.toml: %w", err)
 	}
-	if err := manifest.Save(manifestPath, pf); err != nil {
-		return fmt.Errorf("saving Prolfile.toml: %w", err)
-	}
 
 	overrides := map[string]registry.PackageVersion{}
 	if target.SourceURL != "" {
@@ -118,26 +114,34 @@ func (r *addRunner) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if err := r.sync(pf, manifestPath, overrides); err != nil {
-		_ = manifest.Save(manifestPath, original)
 		return err
 	}
-	if target.PinAfterInstall {
-		version := target.SourceVersion
-		if version == "" {
-			version, err = installedVersionFor(manifestPath, target.Name)
-			if err != nil {
-				return err
-			}
+
+	version, err := installedVersionFor(manifestPath, target.Name)
+	if err != nil {
+		return err
+	}
+	if version == "" {
+		version = target.SourceVersion
+	}
+	constraint := "*"
+	switch {
+	case version == "" || version == "0.0.0":
+		ui.Warn("Could not resolve a stable version for %s; leaving dependency constraint as \"*\"", target.Name)
+	case manifest.ValidateVersion(version) != nil:
+		ui.Warn("Resolved version %q for %s is not valid semver; leaving dependency constraint as \"*\"", version, target.Name)
+	default:
+		constraint = "^" + version
+	}
+	pf.Dependencies[target.Name] = constraint
+	if err := manifest.Validate(pf); err != nil {
+		return fmt.Errorf("pinning dependency version: %w", err)
+	}
+	if err := manifest.Save(manifestPath, pf); err != nil {
+		if saveErr := manifest.Save(manifestPath, original); saveErr != nil {
+			return fmt.Errorf("saving Prolfile.toml: %w (rollback failed: %v)", err, saveErr)
 		}
-		if version != "" && version != "0.0.0" {
-			pf.Dependencies[target.Name] = "^" + version
-			if err := manifest.Validate(pf); err != nil {
-				return fmt.Errorf("pinning dependency version: %w", err)
-			}
-			if err := manifest.Save(manifestPath, pf); err != nil {
-				return fmt.Errorf("saving Prolfile.toml: %w", err)
-			}
-		}
+		return fmt.Errorf("saving Prolfile.toml: %w", err)
 	}
 
 	ui.Success("Added %s", target.Name)
@@ -172,9 +176,9 @@ func parseAddTarget(raw string) (addTarget, error) {
 		}
 		// If this is a listing URL with ?p=<name>, resolve through SWI index by name.
 		if strings.TrimSpace(u.Query().Get("p")) != "" {
-			return addTarget{Name: name, PinAfterInstall: true}, nil
+			return addTarget{Name: name}, nil
 		}
-		return addTarget{Name: name, SourceURL: raw, SourceVersion: inferStableVersion(raw), PinAfterInstall: true}, nil
+		return addTarget{Name: name, SourceURL: raw, SourceVersion: inferStableVersion(raw)}, nil
 
 	case "github.com":
 		parts := splitPathParts(u.Path)
@@ -187,10 +191,10 @@ func parseAddTarget(raw string) (addTarget, error) {
 			return addTarget{}, fmt.Errorf("could not infer package name from GitHub URL %q: %w", raw, err)
 		}
 		if strings.HasSuffix(strings.ToLower(u.Path), ".tar.gz") || strings.HasSuffix(strings.ToLower(u.Path), ".tgz") {
-			return addTarget{Name: repo, SourceURL: raw, SourceVersion: inferStableVersion(raw), PinAfterInstall: true}, nil
+			return addTarget{Name: repo, SourceURL: raw, SourceVersion: inferStableVersion(raw)}, nil
 		}
 		// For repository URLs, resolve to a stable semver tag via GitHub API.
-		return addTarget{Name: repo, GitHubRepoRef: owner + "/" + repo, PinAfterInstall: true}, nil
+		return addTarget{Name: repo, GitHubRepoRef: owner + "/" + repo}, nil
 	}
 
 	return addTarget{}, fmt.Errorf("unsupported dependency URL host %q; use a SWI or GitHub URL", host)

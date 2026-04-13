@@ -124,10 +124,27 @@ func TestExecute_Add_UpdatesManifestAndSyncs(t *testing.T) {
 		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
 			return registry.PackageVersion{}, nil
 		},
-		sync: func(_ *prolfile.ProlFile, _ string, overrides map[string]registry.PackageVersion) error {
+		sync: func(_ *prolfile.ProlFile, manifestPath string, overrides map[string]registry.PackageVersion) error {
 			called = true
 			gotOverride = overrides
-			return nil
+			manifestContent, err := os.ReadFile(manifestPath)
+			require.NoError(t, err)
+			assert.NotContains(t, string(manifestContent), "clpfd = \"*\"")
+			assert.NotContains(t, string(manifestContent), "clpfd = \"^")
+
+			lockContent := `[meta]
+lock_version = 1
+prolfile_hash = ""
+
+[[package]]
+name = "clpfd"
+version = "1.4.3"
+source = "swi-pack-index"
+url = "https://www.swi-prolog.org/pack/file_details?path=clpfd-1.4.3.tgz"
+checksum = "sha256:abc"
+dependencies = []
+`
+			return os.WriteFile(filepath.Join(filepath.Dir(manifestPath), "Prolfile.lock"), []byte(lockContent), 0644)
 		},
 	})
 
@@ -140,7 +157,7 @@ func TestExecute_Add_UpdatesManifestAndSyncs(t *testing.T) {
 	pf, _, err := loadManifest(rootCmd)
 	require.NoError(t, err)
 	require.NotNil(t, pf.Dependencies)
-	assert.Equal(t, "*", pf.Dependencies["clpfd"])
+	assert.Equal(t, "^1.4.3", pf.Dependencies["clpfd"])
 }
 
 func TestExecute_Add_URLOverride_PassesThroughToSync(t *testing.T) {
@@ -286,6 +303,29 @@ dependencies = []
 	pf, _, err := loadManifest(rootCmd)
 	require.NoError(t, err)
 	assert.Equal(t, "^0.0.9", pf.Dependencies["aop"])
+}
+
+func TestExecute_Add_UnresolvedVersionLeavesWildcard(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeBasicManifest(t, dir)
+
+	withAddRunner(t, &addRunner{
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, nil
+		},
+		sync: func(_ *prolfile.ProlFile, _ string, _ map[string]registry.PackageVersion) error {
+			return nil
+		},
+	})
+
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"add", "clpfd"})
+	require.NoError(t, Execute())
+
+	pf, _, err := loadManifest(rootCmd)
+	require.NoError(t, err)
+	assert.Equal(t, "*", pf.Dependencies["clpfd"])
 }
 
 func TestExecute_Remove_UpdatesManifestAndSyncs(t *testing.T) {

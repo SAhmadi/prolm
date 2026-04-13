@@ -193,10 +193,10 @@ Examples:
 ```
 
 **Current status:** available in Phase 1.5 as `prolm add <name|url>`.
-For URL-based adds:
+Current add behavior:
 - GitHub repository URLs are resolved to the latest stable semver tag (no HEAD fallback)
 - if no stable semver tag/release exists, add fails with guidance to use an explicit tagged archive URL
-- dependency constraints are pinned to `^<resolved-version>` in `Prolfile.toml` (not `*`)
+- dependency constraints are persisted as `^<resolved-version>` in `Prolfile.toml` when a stable resolved version is available (across package names and URL inputs); otherwise `*` is kept with a warning
 - lockfile SHA-256 remains authoritative; if an upstream checksum cannot be byte-for-byte cross-verified for a derived archive URL, prolm warns and proceeds with lockfile pinning
 
 ---
