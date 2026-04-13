@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/prolm/prolm/internal/installer"
+	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/manifest"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/internal/ui"
@@ -15,16 +18,23 @@ import (
 )
 
 type addTarget struct {
-	Name      string
-	SourceURL string
+	Name            string
+	SourceURL       string
+	SourceVersion   string
+	GitHubRepoRef   string
+	PinAfterInstall bool
 }
 
 type addRunner struct {
-	sync func(pf *prolfile.ProlFile, manifestPath string, sourceOverrides map[string]string) error
+	resolveGitHubRepo func(ctx context.Context, repoRef string) (registry.PackageVersion, error)
+	sync              func(pf *prolfile.ProlFile, manifestPath string, sourceOverrides map[string]registry.PackageVersion) error
 }
 
 var defaultAddRunner = &addRunner{
-	sync: func(pf *prolfile.ProlFile, manifestPath string, sourceOverrides map[string]string) error {
+	resolveGitHubRepo: func(ctx context.Context, repoRef string) (registry.PackageVersion, error) {
+		return newGitHubRepoResolver().Resolve(ctx, repoRef)
+	},
+	sync: func(pf *prolfile.ProlFile, manifestPath string, sourceOverrides map[string]registry.PackageVersion) error {
 		return syncManifestDependencies(
 			rootCmd.Context(),
 			pf,
@@ -75,6 +85,14 @@ func (r *addRunner) run(cmd *cobra.Command, args []string) error {
 		ui.Hint("Run `prolm install` if you want to refresh local packages")
 		return nil
 	}
+	if target.GitHubRepoRef != "" {
+		pv, err := r.resolveGitHubRepo(cmd.Context(), target.GitHubRepoRef)
+		if err != nil {
+			return fmt.Errorf("resolving github repository %s: %w", target.GitHubRepoRef, err)
+		}
+		target.SourceURL = pv.URL
+		target.SourceVersion = pv.Version
+	}
 
 	pf.Dependencies[target.Name] = "*"
 	if err := manifest.Validate(pf); err != nil {
@@ -84,13 +102,42 @@ func (r *addRunner) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("saving Prolfile.toml: %w", err)
 	}
 
-	overrides := map[string]string{}
+	overrides := map[string]registry.PackageVersion{}
 	if target.SourceURL != "" {
-		overrides[target.Name] = target.SourceURL
+		sourceVersion := target.SourceVersion
+		if sourceVersion == "" {
+			sourceVersion = inferStableVersion(target.SourceURL)
+		}
+		if sourceVersion == "" {
+			sourceVersion = "0.0.0"
+		}
+		overrides[target.Name] = registry.PackageVersion{
+			Name:    target.Name,
+			Version: sourceVersion,
+			URL:     target.SourceURL,
+		}
 	}
 	if err := r.sync(pf, manifestPath, overrides); err != nil {
 		_ = manifest.Save(manifestPath, original)
 		return err
+	}
+	if target.PinAfterInstall {
+		version := target.SourceVersion
+		if version == "" {
+			version, err = installedVersionFor(manifestPath, target.Name)
+			if err != nil {
+				return err
+			}
+		}
+		if version != "" && version != "0.0.0" {
+			pf.Dependencies[target.Name] = "^" + version
+			if err := manifest.Validate(pf); err != nil {
+				return fmt.Errorf("pinning dependency version: %w", err)
+			}
+			if err := manifest.Save(manifestPath, pf); err != nil {
+				return fmt.Errorf("saving Prolfile.toml: %w", err)
+			}
+		}
 	}
 
 	ui.Success("Added %s", target.Name)
@@ -125,27 +172,86 @@ func parseAddTarget(raw string) (addTarget, error) {
 		}
 		// If this is a listing URL with ?p=<name>, resolve through SWI index by name.
 		if strings.TrimSpace(u.Query().Get("p")) != "" {
-			return addTarget{Name: name}, nil
+			return addTarget{Name: name, PinAfterInstall: true}, nil
 		}
-		return addTarget{Name: name, SourceURL: raw}, nil
+		return addTarget{Name: name, SourceURL: raw, SourceVersion: inferStableVersion(raw), PinAfterInstall: true}, nil
 
 	case "github.com":
 		parts := splitPathParts(u.Path)
 		if len(parts) < 2 {
 			return addTarget{}, fmt.Errorf("github URL must include owner/repo: %s", raw)
 		}
+		owner := parts[0]
 		repo := strings.TrimSuffix(parts[1], ".git")
 		if err := manifest.ValidateName(repo); err != nil {
 			return addTarget{}, fmt.Errorf("could not infer package name from GitHub URL %q: %w", raw, err)
 		}
 		if strings.HasSuffix(strings.ToLower(u.Path), ".tar.gz") || strings.HasSuffix(strings.ToLower(u.Path), ".tgz") {
-			return addTarget{Name: repo, SourceURL: raw}, nil
+			return addTarget{Name: repo, SourceURL: raw, SourceVersion: inferStableVersion(raw), PinAfterInstall: true}, nil
 		}
-		// Repository URL support in Phase 1.5 maps to package-name resolution.
-		return addTarget{Name: repo}, nil
+		// For repository URLs, resolve to a stable semver tag via GitHub API.
+		return addTarget{Name: repo, GitHubRepoRef: owner + "/" + repo, PinAfterInstall: true}, nil
 	}
 
 	return addTarget{}, fmt.Errorf("unsupported dependency URL host %q; use a SWI or GitHub URL", host)
+}
+
+func inferStableVersion(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil {
+		if qp := strings.TrimSpace(u.Query().Get("path")); qp != "" {
+			if v := versionFromBase(stripArchiveExt(path.Base(qp))); v != "" {
+				return v
+			}
+		}
+		if v := versionFromBase(stripArchiveExt(path.Base(u.Path))); v != "" {
+			return v
+		}
+	}
+	base := stripArchiveExt(path.Base(rawURL))
+	return versionFromBase(base)
+}
+
+func stripArchiveExt(s string) string {
+	name := strings.TrimSpace(s)
+	for _, suffix := range []string{".tar.gz", ".tgz", ".zip"} {
+		name = strings.TrimSuffix(name, suffix)
+	}
+	for _, suffix := range []string{".tar", ".gz"} {
+		name = strings.TrimSuffix(name, suffix)
+	}
+	name = strings.TrimSuffix(name, ".git")
+	return name
+}
+
+func versionFromBase(base string) string {
+	if i := strings.LastIndex(base, "-"); i > 0 && i+1 < len(base) {
+		candidate := strings.TrimPrefix(base[i+1:], "v")
+		if manifest.ValidateVersion(candidate) == nil {
+			return candidate
+		}
+	}
+	base = strings.TrimPrefix(base, "v")
+	if manifest.ValidateVersion(base) == nil {
+		return base
+	}
+	return ""
+}
+
+func installedVersionFor(manifestPath, name string) (string, error) {
+	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
+	lf, err := lockfile.Load(lockPath)
+	if err != nil {
+		return "", fmt.Errorf("reading Prolfile.lock: %w", err)
+	}
+	if lf == nil {
+		return "", nil
+	}
+	for _, p := range lf.Packages {
+		if p.Name == name {
+			return p.Version, nil
+		}
+	}
+	return "", nil
 }
 
 func deriveNameFromPathOrQuery(u *url.URL) string {

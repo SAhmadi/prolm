@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/prolm/prolm/internal/manifest"
+	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/pkg/prolfile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,9 +90,11 @@ func TestParseAddTarget(t *testing.T) {
 	})
 
 	t.Run("github_repo_url", func(t *testing.T) {
-		got, err := parseAddTarget("https://github.com/SWI-Prolog/packages-clpfd")
+		raw := "https://github.com/SWI-Prolog/packages-clpfd"
+		got, err := parseAddTarget(raw)
 		require.NoError(t, err)
 		assert.Equal(t, "packages-clpfd", got.Name)
+		assert.Equal(t, "SWI-Prolog/packages-clpfd", got.GitHubRepoRef)
 		assert.Empty(t, got.SourceURL)
 	})
 
@@ -115,9 +119,12 @@ func TestExecute_Add_UpdatesManifestAndSyncs(t *testing.T) {
 	writeBasicManifest(t, dir)
 
 	var called bool
-	var gotOverride map[string]string
+	var gotOverride map[string]registry.PackageVersion
 	withAddRunner(t, &addRunner{
-		sync: func(_ *prolfile.ProlFile, _ string, overrides map[string]string) error {
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, nil
+		},
+		sync: func(_ *prolfile.ProlFile, _ string, overrides map[string]registry.PackageVersion) error {
 			called = true
 			gotOverride = overrides
 			return nil
@@ -141,9 +148,12 @@ func TestExecute_Add_URLOverride_PassesThroughToSync(t *testing.T) {
 	t.Chdir(dir)
 	writeBasicManifest(t, dir)
 
-	var gotOverride map[string]string
+	var gotOverride map[string]registry.PackageVersion
 	withAddRunner(t, &addRunner{
-		sync: func(_ *prolfile.ProlFile, _ string, overrides map[string]string) error {
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, nil
+		},
+		sync: func(_ *prolfile.ProlFile, _ string, overrides map[string]registry.PackageVersion) error {
 			gotOverride = overrides
 			return nil
 		},
@@ -154,7 +164,9 @@ func TestExecute_Add_URLOverride_PassesThroughToSync(t *testing.T) {
 	rootCmd.SetArgs([]string{"add", raw})
 	require.NoError(t, Execute())
 
-	assert.Equal(t, map[string]string{"clpfd": raw}, gotOverride)
+	require.Contains(t, gotOverride, "clpfd")
+	assert.Equal(t, raw, gotOverride["clpfd"].URL)
+	assert.Equal(t, "1.2.3", gotOverride["clpfd"].Version)
 }
 
 func TestExecute_Add_SyncFailureRollsBackManifest(t *testing.T) {
@@ -163,7 +175,10 @@ func TestExecute_Add_SyncFailureRollsBackManifest(t *testing.T) {
 	writeBasicManifest(t, dir)
 
 	withAddRunner(t, &addRunner{
-		sync: func(_ *prolfile.ProlFile, _ string, _ map[string]string) error {
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, nil
+		},
+		sync: func(_ *prolfile.ProlFile, _ string, _ map[string]registry.PackageVersion) error {
 			return assert.AnError
 		},
 	})
@@ -176,6 +191,101 @@ func TestExecute_Add_SyncFailureRollsBackManifest(t *testing.T) {
 	pf, _, loadErr := loadManifest(rootCmd)
 	require.NoError(t, loadErr)
 	assert.NotContains(t, pf.Dependencies, "clpfd", "manifest must roll back when sync fails")
+}
+
+func TestExecute_Add_GitHubRepoURL_PinsResolvedVersion(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeBasicManifest(t, dir)
+
+	withAddRunner(t, &addRunner{
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{
+				Name:    "aop",
+				Version: "0.0.9",
+				URL:     "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz",
+			}, nil
+		},
+		sync: func(pf *prolfile.ProlFile, manifestPath string, _ map[string]registry.PackageVersion) error {
+			lockContent := `[meta]
+lock_version = 1
+prolfile_hash = ""
+
+[[package]]
+name = "aop"
+version = "0.0.9"
+source = "github"
+url = "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz"
+checksum = "sha256:abc"
+dependencies = []
+`
+			return os.WriteFile(filepath.Join(filepath.Dir(manifestPath), "Prolfile.lock"), []byte(lockContent), 0644)
+		},
+	})
+
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"add", "https://github.com/hargettp/aop"})
+	require.NoError(t, Execute())
+
+	pf, _, err := loadManifest(rootCmd)
+	require.NoError(t, err)
+	assert.Equal(t, "^0.0.9", pf.Dependencies["aop"])
+}
+
+func TestExecute_Add_GitHubRepoURL_NoStableTagFailsWithGuidance(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeBasicManifest(t, dir)
+
+	withAddRunner(t, &addRunner{
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, assert.AnError
+		},
+		sync: func(_ *prolfile.ProlFile, _ string, _ map[string]registry.PackageVersion) error {
+			return nil
+		},
+	})
+
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"add", "https://github.com/hargettp/aop"})
+	err := Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolving github repository")
+}
+
+func TestExecute_Add_SWIListingURL_PinsVersionFromLockfile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	writeBasicManifest(t, dir)
+
+	withAddRunner(t, &addRunner{
+		resolveGitHubRepo: func(_ context.Context, _ string) (registry.PackageVersion, error) {
+			return registry.PackageVersion{}, nil
+		},
+		sync: func(_ *prolfile.ProlFile, manifestPath string, _ map[string]registry.PackageVersion) error {
+			lockContent := `[meta]
+lock_version = 1
+prolfile_hash = ""
+
+[[package]]
+name = "aop"
+version = "0.0.9"
+source = "swi-pack-index"
+url = "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz"
+checksum = "sha256:abc"
+dependencies = []
+`
+			return os.WriteFile(filepath.Join(filepath.Dir(manifestPath), "Prolfile.lock"), []byte(lockContent), 0644)
+		},
+	})
+
+	resetRootCmd(t)
+	rootCmd.SetArgs([]string{"add", "https://www.swi-prolog.org/pack/list?p=aop"})
+	require.NoError(t, Execute())
+
+	pf, _, err := loadManifest(rootCmd)
+	require.NoError(t, err)
+	assert.Equal(t, "^0.0.9", pf.Dependencies["aop"])
 }
 
 func TestExecute_Remove_UpdatesManifestAndSyncs(t *testing.T) {

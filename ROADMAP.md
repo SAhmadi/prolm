@@ -425,6 +425,11 @@ This is the most security-critical sub-phase.
   - SWI package names
   - direct SWI package URLs
   - GitHub URLs for Prolog packages
+- [x] For GitHub repository URLs:
+  - resolve to latest stable semver tag/release
+  - fail with actionable guidance if no stable semver tag/release exists (no HEAD fallback)
+- [x] For URL-based adds, pin manifest constraint to `^<resolved-version>` instead of `*`
+- [x] If upstream checksum cannot be cross-verified for a derived archive URL, warn and continue with lockfile SHA-256 pinning
 - [x] Successful `add` should update `Prolfile.toml`, install the package, and write `Prolfile.lock`
 - [x] Add `prolm remove <pack>` in the same phase so dependency lifecycle is symmetric
   - remove from `[dependencies]` by default

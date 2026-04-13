@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/prolm/prolm/internal/registry"
+	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -415,6 +417,50 @@ func TestInstall_RegistryChecksumMatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, lf.Packages, 1)
+}
+
+func TestInstall_ChecksumWarning_PrintsWarningAndInstalls(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	tarball := makeTarball(t, map[string]string{"pkg/main.pl": "ok."})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(tarball)
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"mypack": {{
+				Name:            "mypack",
+				Version:         "1.0.0",
+				URL:             srv.URL + "/mypack-1.0.0.tar.gz",
+				Checksum:        "",
+				ChecksumWarning: "upstream checksum could not be cross-verified",
+			}},
+		},
+		downloadURL: map[string]string{
+			"mypack@1.0.0": srv.URL + "/mypack-1.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"mypack": "*"},
+	}
+
+	prevErr := ui.Err
+	defer func() { ui.Err = prevErr }()
+	buf := &bytes.Buffer{}
+	ui.Err = buf
+	viper.Set("no-color", true)
+	t.Cleanup(viper.Reset)
+
+	lf, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 1)
+	assert.Contains(t, buf.String(), "could not be cross-verified")
 }
 
 func TestInstall_DeterministicOrder(t *testing.T) {

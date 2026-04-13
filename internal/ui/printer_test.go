@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -246,10 +247,10 @@ func TestAllPrinterFunctions_WriteMessage(t *testing.T) {
 	// Fatal is omitted because it calls os.Exit(1).
 	// Its Error path is covered by TestError_WritesToErr.
 	tests := []struct {
-		name      string
-		fn        func(string, ...any)
-		captureW  func(*testing.T) *bytes.Buffer // which buffer to capture
-		otherW    func(*testing.T) *bytes.Buffer // must remain empty
+		name     string
+		fn       func(string, ...any)
+		captureW func(*testing.T) *bytes.Buffer // which buffer to capture
+		otherW   func(*testing.T) *bytes.Buffer // must remain empty
 	}{
 		{"Info", Info, captureOut, captureErr},
 		{"Success", Success, captureOut, captureErr},
@@ -349,4 +350,14 @@ func TestNewDownloadBar_ColorMode_DoesNotPanic(t *testing.T) {
 	bar := NewDownloadBar(1024, "downloading clpfd")
 
 	require.NotNil(t, bar)
+}
+
+func TestRewriteSubSecondElapsed_RewritesZeroSecondTokenToMilliseconds(t *testing.T) {
+	got := rewriteSubSecondElapsed("progress [0s] done", 128*time.Millisecond)
+	assert.Equal(t, "progress [128ms] done", got)
+}
+
+func TestRewriteSubSecondElapsed_LeavesLongDurationsUnchanged(t *testing.T) {
+	got := rewriteSubSecondElapsed("progress [0s] done", 2*time.Second)
+	assert.Equal(t, "progress [0s] done", got)
 }

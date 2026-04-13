@@ -86,6 +86,20 @@ const prosqliteDetailHTML = `<!DOCTYPE html>
 </table>
 </body></html>`
 
+const aopGitDetailHTML = `<!DOCTYPE html>
+<html><body>
+<h2>aop</h2>
+<table>
+<tr><th>Version</th><th>SHA1</th><th>#Downloads</th><th>URL</th></tr>
+<tr>
+  <td>0.0.9</td>
+  <td>f8cce8405c474b64e569a58634bf5dfd0b2c9ccc</td>
+  <td>21</td>
+  <td><a href="https://github.com/hargettp/aop.git">download</a></td>
+</tr>
+</table>
+</body></html>`
+
 const packNotFoundHTML = `<!DOCTYPE html>
 <html><body>
 <h2>Pack not found</h2>
@@ -167,6 +181,16 @@ func TestParsePackDetail_EmptyVersionTable(t *testing.T) {
 	// The parse function itself returns empty slice.
 	require.NoError(t, err)
 	assert.Empty(t, versions)
+}
+
+func TestParsePackDetail_GitRepoURL_DropsSWIChecksum(t *testing.T) {
+	versions, err := parsePackDetail(strings.NewReader(aopGitDetailHTML), "aop")
+	require.NoError(t, err)
+	require.Len(t, versions, 1)
+	assert.Equal(t, "0.0.9", versions[0].Version)
+	assert.Equal(t, "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz", versions[0].URL)
+	assert.Empty(t, versions[0].Checksum)
+	assert.Contains(t, versions[0].ChecksumWarning, "could not be cross-verified")
 }
 
 // --- SWIRegistry method tests (httptest.Server) ---
@@ -287,6 +311,16 @@ func TestDownloadURL_StripsVPrefix(t *testing.T) {
 	url, err := reg.DownloadURL(context.Background(), "clpfd", "v1.4.3")
 	require.NoError(t, err)
 	assert.Contains(t, url, "v1.4.3.tar.gz")
+}
+
+func TestDownloadURL_GitRepoURL_ConvertedToTaggedArchive(t *testing.T) {
+	reg, _ := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(aopGitDetailHTML))
+	})
+
+	url, err := reg.DownloadURL(context.Background(), "aop", "0.0.9")
+	require.NoError(t, err)
+	assert.Equal(t, "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz", url)
 }
 
 // --- Security tests ---

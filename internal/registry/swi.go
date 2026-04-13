@@ -474,6 +474,18 @@ func parseDetailRow(tr *html.Node, name string) (PackageVersion, bool) {
 			pv.URL = href
 			break
 		}
+		if archiveURL, ok := githubArchiveFromGitURL(href, version); ok {
+			pv.URL = archiveURL
+			// SWI pack pages report SHA1 for their own fetch path (often .git),
+			// which does not necessarily match bytes from GitHub archive URLs.
+			// Keep lockfile integrity via computed sha256 after download.
+			pv.Checksum = ""
+			pv.ChecksumWarning = fmt.Sprintf(
+				"upstream checksum for %s@%s could not be cross-verified against the archive URL; proceeding with lockfile sha256 pinning",
+				name, version,
+			)
+			break
+		}
 	}
 
 	return pv, true
@@ -596,4 +608,43 @@ func isDownloadURL(href string) bool {
 	return strings.HasSuffix(lower, ".tgz") ||
 		strings.HasSuffix(lower, ".tar.gz") ||
 		strings.HasSuffix(lower, ".zip")
+}
+
+func githubArchiveFromGitURL(href, version string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(href))
+	if !strings.HasSuffix(lower, ".git") {
+		return "", false
+	}
+
+	u, err := url.Parse(href)
+	if err != nil {
+		return "", false
+	}
+	if !strings.EqualFold(u.Hostname(), "github.com") {
+		return "", false
+	}
+
+	parts := splitPathParts(u.Path)
+	if len(parts) < 2 {
+		return "", false
+	}
+	owner := parts[0]
+	repo := strings.TrimSuffix(parts[1], ".git")
+	if owner == "" || repo == "" {
+		return "", false
+	}
+
+	// Prefer the common GitHub tag convention used by SWI pack pages.
+	return fmt.Sprintf("https://github.com/%s/%s/archive/refs/tags/v%s.tar.gz", owner, repo, version), true
+}
+
+func splitPathParts(p string) []string {
+	rawParts := strings.Split(strings.Trim(p, "/"), "/")
+	out := make([]string, 0, len(rawParts))
+	for _, part := range rawParts {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }

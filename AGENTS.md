@@ -184,20 +184,20 @@ Examples:
 Adds a dependency and re-runs install.
 
 ```
-prolm add <pack> [version-constraint] [flags]
-
-Flags:
-  --dev               Add to [dev-dependencies] instead of [dependencies]
-  --exact             Pin to exact version (=x.y.z) rather than ^x.y.z
+prolm add <name|url>
 
 Examples:
   prolm add clpfd
-  prolm add clpfd "^1.4"
-  prolm add plunit --dev
-  prolm add prosqlite --exact
+  prolm add https://www.swi-prolog.org/pack/list?p=aop
+  prolm add https://github.com/hargettp/aop
 ```
 
-**Current status:** planned command. The first pre-registry implementation path is expected to land in Phase 1.5 using `prolm add <name|url>`.
+**Current status:** available in Phase 1.5 as `prolm add <name|url>`.
+For URL-based adds:
+- GitHub repository URLs are resolved to the latest stable semver tag (no HEAD fallback)
+- if no stable semver tag/release exists, add fails with guidance to use an explicit tagged archive URL
+- dependency constraints are pinned to `^<resolved-version>` in `Prolfile.toml` (not `*`)
+- lockfile SHA-256 remains authoritative; if an upstream checksum cannot be byte-for-byte cross-verified for a derived archive URL, prolm warns and proceeds with lockfile pinning
 
 ---
 
