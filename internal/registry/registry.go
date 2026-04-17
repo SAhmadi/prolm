@@ -12,12 +12,15 @@ import (
 // PackageVersion holds metadata for a single version of a package
 // as returned by a registry source.
 type PackageVersion struct {
-	Name         string
-	Version      string
-	URL          string
-	Checksum     string // format: "sha1:<hex>" for SWI index; installer computes sha256 separately
-	Dependencies []string
-	Yanked       bool
+	Name     string
+	Version  string
+	URL      string
+	Checksum string // format: "sha1:<hex>" for SWI index; installer computes sha256 separately
+	// ChecksumWarning explains why registry checksum cross-verification is not
+	// available for this source URL, and is surfaced to users during install.
+	ChecksumWarning string
+	Dependencies    []string
+	Yanked          bool
 }
 
 // Registry is the interface that all package registry sources must implement.

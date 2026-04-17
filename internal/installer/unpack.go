@@ -104,6 +104,11 @@ func Unpack(tarballPath string, destDir string) error {
 				return fmt.Errorf("creating directory %s: %w", header.Name, err)
 			}
 
+		case tar.TypeXGlobalHeader, tar.TypeXHeader:
+			// Extended PAX metadata entries (e.g., "pax_global_header") are
+			// archive metadata, not filesystem payload. Ignore and continue.
+			continue
+
 		case tar.TypeReg:
 			if header.Size > maxSingleFileSize {
 				return &ErrExtractionLimit{

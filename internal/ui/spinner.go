@@ -2,6 +2,9 @@ package ui
 
 import (
 	"fmt"
+	"io"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +15,18 @@ var (
 	spinMu  sync.Mutex
 	spinner *progressbar.ProgressBar
 )
+
+type elapsedRewriteWriter struct {
+	out     io.Writer
+	started time.Time
+}
+
+func (w *elapsedRewriteWriter) Write(p []byte) (int, error) {
+	text := rewriteSubSecondElapsed(string(p), time.Since(w.started))
+	_, err := io.WriteString(w.out, text)
+	// Report original length consumed to satisfy io.Writer callers.
+	return len(p), err
+}
 
 // StartSpinner displays an indeterminate progress spinner with msg.
 //
@@ -89,7 +104,10 @@ func NewDownloadBar(totalBytes int64, description string) *progressbar.ProgressB
 	}
 	return progressbar.NewOptions64(totalBytes,
 		progressbar.OptionSetDescription(description),
-		progressbar.OptionSetWriter(Out),
+		progressbar.OptionSetWriter(&elapsedRewriteWriter{
+			out:     Out,
+			started: time.Now(),
+		}),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetWidth(40),
 		progressbar.OptionThrottle(100*time.Millisecond),
@@ -98,4 +116,15 @@ func NewDownloadBar(totalBytes int64, description string) *progressbar.ProgressB
 		progressbar.OptionSetPredictTime(true),
 		progressbar.OptionClearOnFinish(),
 	)
+}
+
+func rewriteSubSecondElapsed(line string, elapsed time.Duration) string {
+	if elapsed >= time.Second || !strings.Contains(line, "[0s]") {
+		return line
+	}
+	ms := elapsed.Milliseconds()
+	if ms <= 0 {
+		ms = 1
+	}
+	return strings.ReplaceAll(line, "[0s]", "["+strconv.FormatInt(ms, 10)+"ms]")
 }

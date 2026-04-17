@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prolm/prolm/internal/httputil"
@@ -51,9 +53,7 @@ func Fetch(ctx context.Context, rawURL string, destPath string) error {
 
 	client := &http.Client{Timeout: fetchTimeout}
 
-	resp, err := httputil.DoWithRetries(ctx, client, fetchRetryConfig, func() (*http.Request, error) {
-		return http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	})
+	resp, err := fetchWithRetry(ctx, client, rawURL)
 	if err != nil {
 		// Convert httputil exhaustion error to registry.ErrRateLimited for API compatibility.
 		var exhausted *httputil.ErrRetriesExhausted
@@ -65,7 +65,22 @@ func Fetch(ctx context.Context, rawURL string, destPath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d fetching %s", resp.StatusCode, rawURL)
+		if resp.StatusCode == http.StatusNotFound {
+			if fallbackURL, ok := fallbackGitHubTagArchiveURL(rawURL); ok {
+				resp.Body.Close()
+				fallbackResp, fallbackErr := fetchWithRetry(ctx, client, fallbackURL)
+				if fallbackErr == nil {
+					resp = fallbackResp
+				} else {
+					return fallbackErr
+				}
+				defer resp.Body.Close()
+				rawURL = fallbackURL
+			}
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("HTTP %d fetching %s", resp.StatusCode, rawURL)
+		}
 	}
 
 	maxSize := maxTarballSize()
@@ -117,4 +132,37 @@ func Fetch(ctx context.Context, rawURL string, destPath string) error {
 		return fmt.Errorf("moving tarball to destination: %w", err)
 	}
 	return nil
+}
+
+func fetchWithRetry(ctx context.Context, client *http.Client, rawURL string) (*http.Response, error) {
+	return httputil.DoWithRetries(ctx, client, fetchRetryConfig, func() (*http.Request, error) {
+		return http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	})
+}
+
+func fallbackGitHubTagArchiveURL(rawURL string) (string, bool) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", false
+	}
+	if !strings.EqualFold(u.Hostname(), "github.com") && !httputil.IsLocalhostURL(rawURL) {
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
+	if len(parts) < 6 {
+		return "", false
+	}
+	if !strings.EqualFold(parts[2], "archive") || !strings.EqualFold(parts[3], "refs") || !strings.EqualFold(parts[4], "tags") {
+		return "", false
+	}
+	tag := parts[5]
+	if !strings.HasPrefix(tag, "v") || len(tag) == 1 {
+		return "", false
+	}
+	if !strings.HasSuffix(strings.ToLower(tag), ".tar.gz") {
+		return "", false
+	}
+	parts[5] = strings.TrimPrefix(tag, "v")
+	u.Path = "/" + strings.Join(parts, "/")
+	return u.String(), true
 }

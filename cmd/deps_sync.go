@@ -21,7 +21,7 @@ func syncManifestDependencies(
 	manifestPath string,
 	newRegistry func() (registry.Registry, error),
 	installOpts func() installer.Options,
-	sourceOverrides map[string]string,
+	sourceOverrides map[string]registry.PackageVersion,
 ) error {
 	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
 	lock, err := lockfile.Load(lockPath)
@@ -60,7 +60,7 @@ func syncManifestDependencies(
 // while keeping the rest of resolution on the default SWI registry.
 type sourceOverrideRegistry struct {
 	base      registry.Registry
-	overrides map[string]string
+	overrides map[string]registry.PackageVersion
 }
 
 func (r *sourceOverrideRegistry) Search(ctx context.Context, query string) ([]registry.PackageVersion, error) {
@@ -68,19 +68,21 @@ func (r *sourceOverrideRegistry) Search(ctx context.Context, query string) ([]re
 }
 
 func (r *sourceOverrideRegistry) Versions(ctx context.Context, name string) ([]registry.PackageVersion, error) {
-	if u, ok := r.overrides[name]; ok {
-		return []registry.PackageVersion{{
-			Name:    name,
-			Version: "0.0.0",
-			URL:     u,
-		}}, nil
+	if pv, ok := r.overrides[name]; ok {
+		if pv.Name == "" {
+			pv.Name = name
+		}
+		if pv.Version == "" {
+			pv.Version = "0.0.0"
+		}
+		return []registry.PackageVersion{pv}, nil
 	}
 	return r.base.Versions(ctx, name)
 }
 
 func (r *sourceOverrideRegistry) DownloadURL(ctx context.Context, name, version string) (string, error) {
-	if u, ok := r.overrides[name]; ok {
-		return u, nil
+	if pv, ok := r.overrides[name]; ok {
+		return pv.URL, nil
 	}
 	return r.base.DownloadURL(ctx, name, version)
 }

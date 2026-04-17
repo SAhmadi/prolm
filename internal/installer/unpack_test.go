@@ -20,6 +20,7 @@ type tarEntry struct {
 	Body     []byte
 	Typeflag byte
 	Linkname string
+	PAX      map[string]string
 	Size     int64 // override header size; 0 means len(Body)
 }
 
@@ -35,11 +36,12 @@ func writeTarGz(t *testing.T, dir string, entries []tarEntry) string {
 			size = e.Size
 		}
 		hdr := &tar.Header{
-			Name:     e.Name,
-			Mode:     0644,
-			Size:     size,
-			Typeflag: e.Typeflag,
-			Linkname: e.Linkname,
+			Name:       e.Name,
+			Mode:       0644,
+			Size:       size,
+			Typeflag:   e.Typeflag,
+			Linkname:   e.Linkname,
+			PAXRecords: e.PAX,
 		}
 		if e.Typeflag == 0 {
 			hdr.Typeflag = tar.TypeReg
@@ -246,6 +248,38 @@ func TestUnpack_NamedPipe(t *testing.T) {
 	err := Unpack(tarball, destDir)
 	var traversal *ErrPathTraversal
 	require.ErrorAs(t, err, &traversal)
+}
+
+func TestUnpack_IgnoresPAXGlobalHeader(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Typeflag:   tar.TypeXGlobalHeader,
+		PAXRecords: map[string]string{"comment": "generated-by-test"},
+	}))
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:     "pkg/main.pl",
+		Mode:     0644,
+		Size:     int64(len("main.\n")),
+		Typeflag: tar.TypeReg,
+	}))
+	_, err := tw.Write([]byte("main.\n"))
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gw.Close())
+
+	tarball := filepath.Join(dir, "pax.tar.gz")
+	require.NoError(t, os.WriteFile(tarball, buf.Bytes(), 0644))
+
+	destDir := filepath.Join(dir, "out")
+	err = Unpack(tarball, destDir)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(destDir, "pkg", "main.pl"))
+	require.NoError(t, err)
+	assert.Equal(t, "main.\n", string(content))
 }
 
 func TestUnpack_ExcessiveFileCount(t *testing.T) {

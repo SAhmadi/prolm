@@ -151,6 +151,9 @@ func installOne(ctx context.Context, name, constraint string, lock *prolfile.Loc
 	if err := VerifyRegistryChecksum(tarball, chosen.Checksum); err != nil {
 		return nil, fmt.Errorf("verifying registry checksum: %w", err)
 	}
+	if chosen.Checksum == "" && chosen.ChecksumWarning != "" {
+		ui.Warn("%s", chosen.ChecksumWarning)
+	}
 
 	// SEC-1: compute sha256 for the lockfile.
 	checksum, err := ComputeChecksum(tarball)

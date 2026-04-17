@@ -107,8 +107,10 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - update `Prolfile.toml`
   - install the dependency
   - write/update `Prolfile.lock`
+  - persist dependency constraints as `^<resolved-version>` when a stable version can be resolved; otherwise keep `*` with a warning
 - Notes:
   - SWI listing URLs are normalized to package-name installs
+  - GitHub repository URLs are resolved to the latest stable semver tag/release (no HEAD fallback)
   - direct archive URLs are installed via URL override
 - Future flags:
   - `--dev` — `Phase 2`
