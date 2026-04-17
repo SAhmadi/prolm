@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 )
 
 const defaultGitHubAPIBaseURL = "https://api.github.com"
+const gitHubAPIUserAgent = "prolm-cli/1.x (+https://github.com/prolm/prolm)"
 
 type gitHubRepoResolver struct {
 	client  *http.Client
@@ -95,7 +98,7 @@ func (r *gitHubRepoResolver) resolveStableTag(ctx context.Context, client *http.
 }
 
 func fetchGitHubTagNames(ctx context.Context, client *http.Client, endpoint, label string) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newGitHubAPIRequest(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +109,7 @@ func fetchGitHubTagNames(ctx context.Context, client *http.Client, endpoint, lab
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github %s request failed: HTTP %d", label, resp.StatusCode)
+		return nil, gitHubAPIError(label, resp)
 	}
 
 	var payload []struct {
@@ -125,7 +128,7 @@ func fetchGitHubTagNames(ctx context.Context, client *http.Client, endpoint, lab
 }
 
 func fetchGitHubReleaseTagNames(ctx context.Context, client *http.Client, endpoint string) ([]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newGitHubAPIRequest(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +139,7 @@ func fetchGitHubReleaseTagNames(ctx context.Context, client *http.Client, endpoi
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github releases request failed: HTTP %d", resp.StatusCode)
+		return nil, gitHubAPIError("releases", resp)
 	}
 
 	var payload []struct {
@@ -177,4 +180,37 @@ func pickLatestStableSemverTag(tags []string) (tag string, version string) {
 		return "", ""
 	}
 	return bestRaw, best.String()
+}
+
+func newGitHubAPIRequest(ctx context.Context, endpoint string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", gitHubAPIUserAgent)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if token := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return req, nil
+}
+
+func gitHubAPIError(label string, resp *http.Response) error {
+	if resp == nil {
+		return fmt.Errorf("github %s request failed", label)
+	}
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	body := strings.TrimSpace(string(bodyBytes))
+	switch resp.StatusCode {
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		if body != "" {
+			return fmt.Errorf("github %s request failed: HTTP %d (%s). Check GitHub API rate limits and set GITHUB_TOKEN", label, resp.StatusCode, body)
+		}
+		return fmt.Errorf("github %s request failed: HTTP %d. Check GitHub API rate limits and set GITHUB_TOKEN", label, resp.StatusCode)
+	default:
+		if body != "" {
+			return fmt.Errorf("github %s request failed: HTTP %d (%s)", label, resp.StatusCode, body)
+		}
+		return fmt.Errorf("github %s request failed: HTTP %d", label, resp.StatusCode)
+	}
 }

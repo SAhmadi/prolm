@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,4 +86,60 @@ func TestGitHubResolver_NoStableSemverTagsOrReleasesFails(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no stable semver tags/releases")
 	assert.Contains(t, err.Error(), "explicit tagged archive URL")
+}
+
+func TestFetchGitHubTagNames_SetsHeaders_AndUsesGitHubToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "secret-token")
+	var gotUserAgent string
+	var gotAuth string
+	var gotAccept string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserAgent = r.Header.Get("User-Agent")
+		gotAuth = r.Header.Get("Authorization")
+		gotAccept = r.Header.Get("Accept")
+		_ = json.NewEncoder(w).Encode([]map[string]string{{"name": "v1.2.3"}})
+	}))
+	t.Cleanup(srv.Close)
+
+	client := srv.Client()
+	names, err := fetchGitHubTagNames(context.Background(), client, srv.URL, "tags")
+	require.NoError(t, err)
+	require.Equal(t, []string{"v1.2.3"}, names)
+	assert.Equal(t, gitHubAPIUserAgent, gotUserAgent)
+	assert.Equal(t, "Bearer secret-token", gotAuth)
+	assert.Equal(t, "application/vnd.github+json", gotAccept)
+}
+
+func TestFetchGitHubTagNames_ForbiddenIncludesTokenGuidance(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte("rate limit exceeded"))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := fetchGitHubTagNames(context.Background(), srv.Client(), srv.URL, "tags")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "HTTP 403")
+	assert.Contains(t, err.Error(), "GITHUB_TOKEN")
+	assert.Contains(t, err.Error(), "rate limit")
+}
+
+func TestFetchGitHubReleaseTagNames_SetsUserAgentWithoutToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	var gotUserAgent string
+	var gotAuth string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserAgent = r.Header.Get("User-Agent")
+		gotAuth = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode([]map[string]string{{"tag_name": "v1.0.0"}})
+	}))
+	t.Cleanup(srv.Close)
+
+	names, err := fetchGitHubReleaseTagNames(context.Background(), srv.Client(), srv.URL)
+	require.NoError(t, err)
+	require.Equal(t, []string{"v1.0.0"}, names)
+	assert.Equal(t, gitHubAPIUserAgent, gotUserAgent)
+	assert.Empty(t, gotAuth)
 }

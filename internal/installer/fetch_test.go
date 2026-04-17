@@ -2,6 +2,7 @@ package installer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -214,4 +215,98 @@ func TestMaxTarballSize_Custom(t *testing.T) {
 func TestMaxTarballSize_Invalid(t *testing.T) {
 	t.Setenv(maxTarballSizeEnvVar, "not-a-number")
 	assert.Equal(t, int64(defaultMaxTarball), maxTarballSize())
+}
+
+func TestFetch_GitHubTagArchive_FallbacksFromVPrefixOn404(t *testing.T) {
+	content := []byte("fallback-content")
+	var vURL string
+	var noVURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/org/repo/archive/refs/tags/v1.2.3.tar.gz":
+			vURL = r.URL.Path
+			w.WriteHeader(http.StatusNotFound)
+		case "/org/repo/archive/refs/tags/1.2.3.tar.gz":
+			noVURL = r.URL.Path
+			_, _ = w.Write(content)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "pack.tar.gz")
+	err := Fetch(context.Background(), srv.URL+"/org/repo/archive/refs/tags/v1.2.3.tar.gz", dest)
+	require.NoError(t, err)
+	require.Equal(t, "/org/repo/archive/refs/tags/v1.2.3.tar.gz", vURL)
+	require.Equal(t, "/org/repo/archive/refs/tags/1.2.3.tar.gz", noVURL)
+	got, readErr := os.ReadFile(dest)
+	require.NoError(t, readErr)
+	assert.Equal(t, content, got)
+}
+
+func TestFetch_GitHubTagArchive_FallbackFails_WhenBoth404(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = calls.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "pack.tar.gz")
+	err := Fetch(context.Background(), srv.URL+"/org/repo/archive/refs/tags/v1.2.3.tar.gz", dest)
+	require.Error(t, err)
+	assert.Equal(t, int32(2), calls.Load())
+	assert.Contains(t, err.Error(), "HTTP 404")
+	assert.Contains(t, err.Error(), "/repo/archive/refs/tags/1.2.3.tar.gz")
+}
+
+func TestFetch_GitHubTagArchive_FallbackNotAppliedForNonTagArchivePath(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = calls.Add(1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "pack.tar.gz")
+	err := Fetch(context.Background(), srv.URL+"/repo/releases/download/v1.2.3/pkg.tar.gz", dest)
+	require.Error(t, err)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestFallbackGitHubTagArchiveURL(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		out  string
+		ok   bool
+	}{
+		{
+			name: "fallback from v prefix",
+			in:   "https://github.com/org/repo/archive/refs/tags/v1.2.3.tar.gz",
+			out:  "https://github.com/org/repo/archive/refs/tags/1.2.3.tar.gz",
+			ok:   true,
+		},
+		{
+			name: "no fallback for non v tag",
+			in:   "https://github.com/org/repo/archive/refs/tags/1.2.3.tar.gz",
+			ok:   false,
+		},
+		{
+			name: "no fallback for non github host",
+			in:   "https://example.com/org/repo/archive/refs/tags/v1.2.3.tar.gz",
+			ok:   false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := fallbackGitHubTagArchiveURL(tc.in)
+			assert.Equal(t, tc.ok, ok, fmt.Sprintf("input: %s", tc.in))
+			assert.Equal(t, tc.out, got)
+		})
+	}
 }
