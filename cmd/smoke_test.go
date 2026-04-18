@@ -153,3 +153,24 @@ func TestSmoke_New_MissingName_ShowsArgumentError(t *testing.T) {
 	assert.Contains(t, out, "Usage:")
 	assert.NotContains(t, out, "Created project")
 }
+
+func TestSmoke_Install_EmptyLockfile_UsesContractEncoding(t *testing.T) {
+	binPath := buildSmokeBinary(t)
+	workspace := t.TempDir()
+	homeDir := filepath.Join(workspace, "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0755))
+
+	env := append(os.Environ(), "HOME="+homeDir, "NO_COLOR=1")
+
+	runSmokeCommand(t, binPath, workspace, env, "new", "hello")
+	projectDir := filepath.Join(workspace, "hello")
+	runSmokeCommand(t, binPath, projectDir, env, "install")
+
+	lockBytes, err := os.ReadFile(filepath.Join(projectDir, "Prolfile.lock"))
+	require.NoError(t, err)
+	lockContent := string(lockBytes)
+
+	assert.Contains(t, lockContent, `prolfile_hash = "sha256:`)
+	assert.NotContains(t, lockContent, `prolfile_hash = ""`)
+	assert.NotContains(t, lockContent, "package = []")
+}

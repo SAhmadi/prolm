@@ -27,7 +27,7 @@ Templates:
 		name := args[0]
 		tmpl, _ := cmd.Flags().GetString("template")
 		runtime, _ := cmd.Flags().GetString("runtime")
-		// --runtime is a global flag; default to SWI for `prolm new` when unset.
+		// Effective default for new projects is SWI when no runtime flag is set.
 		if runtime == "" {
 			runtime = "swi"
 		}

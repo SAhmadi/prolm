@@ -68,24 +68,24 @@ func TestExecute_HelpOutput_HasNoInternalAuthoringRefs(t *testing.T) {
 
 func TestParseAddTarget(t *testing.T) {
 	t.Run("package_name", func(t *testing.T) {
-		got, err := parseAddTarget("clpfd")
+		got, err := parseAddTarget("aop")
 		require.NoError(t, err)
-		assert.Equal(t, "clpfd", got.Name)
+		assert.Equal(t, "aop", got.Name)
 		assert.Empty(t, got.SourceURL)
 	})
 
 	t.Run("swi_listing_url", func(t *testing.T) {
-		got, err := parseAddTarget("https://www.swi-prolog.org/pack/list?p=clpfd")
+		got, err := parseAddTarget("https://www.swi-prolog.org/pack/list?p=aop")
 		require.NoError(t, err)
-		assert.Equal(t, "clpfd", got.Name)
+		assert.Equal(t, "aop", got.Name)
 		assert.Empty(t, got.SourceURL)
 	})
 
 	t.Run("swi_tarball_url", func(t *testing.T) {
-		raw := "https://www.swi-prolog.org/pack/file_details?path=clpfd-1.2.3.tgz"
+		raw := "https://www.swi-prolog.org/pack/file_details?path=aop-0.0.9.tgz"
 		got, err := parseAddTarget(raw)
 		require.NoError(t, err)
-		assert.Equal(t, "clpfd", got.Name)
+		assert.Equal(t, "aop", got.Name)
 		assert.Equal(t, raw, got.SourceURL)
 	})
 
@@ -107,7 +107,7 @@ func TestParseAddTarget(t *testing.T) {
 	})
 
 	t.Run("http_rejected", func(t *testing.T) {
-		_, err := parseAddTarget("http://www.swi-prolog.org/pack/list?p=clpfd")
+		_, err := parseAddTarget("http://www.swi-prolog.org/pack/list?p=aop")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "HTTPS")
 	})
@@ -129,18 +129,18 @@ func TestExecute_Add_UpdatesManifestAndSyncs(t *testing.T) {
 			gotOverride = overrides
 			manifestContent, err := os.ReadFile(manifestPath)
 			require.NoError(t, err)
-			assert.NotContains(t, string(manifestContent), "clpfd = \"*\"")
-			assert.NotContains(t, string(manifestContent), "clpfd = \"^")
+			assert.NotContains(t, string(manifestContent), "aop = \"*\"")
+			assert.NotContains(t, string(manifestContent), "aop = \"^")
 
 			lockContent := `[meta]
 lock_version = 1
 prolfile_hash = ""
 
 [[package]]
-name = "clpfd"
-version = "1.4.3"
+name = "aop"
+version = "0.0.9"
 source = "swi-pack-index"
-url = "https://www.swi-prolog.org/pack/file_details?path=clpfd-1.4.3.tgz"
+url = "https://github.com/hargettp/aop/archive/refs/tags/v0.0.9.tar.gz"
 checksum = "sha256:abc"
 dependencies = []
 `
@@ -149,7 +149,7 @@ dependencies = []
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"add", "clpfd"})
+	rootCmd.SetArgs([]string{"add", "aop"})
 	require.NoError(t, Execute())
 	require.True(t, called, "add must sync manifest -> lock/install")
 	assert.Empty(t, gotOverride)
@@ -157,7 +157,7 @@ dependencies = []
 	pf, _, err := loadManifest(rootCmd)
 	require.NoError(t, err)
 	require.NotNil(t, pf.Dependencies)
-	assert.Equal(t, "^1.4.3", pf.Dependencies["clpfd"])
+	assert.Equal(t, "^0.0.9", pf.Dependencies["aop"])
 }
 
 func TestExecute_Add_URLOverride_PassesThroughToSync(t *testing.T) {
@@ -176,14 +176,14 @@ func TestExecute_Add_URLOverride_PassesThroughToSync(t *testing.T) {
 		},
 	})
 
-	raw := "https://www.swi-prolog.org/pack/file_details?path=clpfd-1.2.3.tgz"
+	raw := "https://www.swi-prolog.org/pack/file_details?path=aop-0.0.9.tgz"
 	resetRootCmd(t)
 	rootCmd.SetArgs([]string{"add", raw})
 	require.NoError(t, Execute())
 
-	require.Contains(t, gotOverride, "clpfd")
-	assert.Equal(t, raw, gotOverride["clpfd"].URL)
-	assert.Equal(t, "1.2.3", gotOverride["clpfd"].Version)
+	require.Contains(t, gotOverride, "aop")
+	assert.Equal(t, raw, gotOverride["aop"].URL)
+	assert.Equal(t, "0.0.9", gotOverride["aop"].Version)
 }
 
 func TestExecute_Add_SyncFailureRollsBackManifest(t *testing.T) {
@@ -201,13 +201,13 @@ func TestExecute_Add_SyncFailureRollsBackManifest(t *testing.T) {
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"add", "clpfd"})
+	rootCmd.SetArgs([]string{"add", "aop"})
 	err := Execute()
 	require.Error(t, err)
 
 	pf, _, loadErr := loadManifest(rootCmd)
 	require.NoError(t, loadErr)
-	assert.NotContains(t, pf.Dependencies, "clpfd", "manifest must roll back when sync fails")
+	assert.NotContains(t, pf.Dependencies, "aop", "manifest must roll back when sync fails")
 }
 
 func TestExecute_Add_GitHubRepoURL_PinsResolvedVersion(t *testing.T) {
@@ -320,12 +320,12 @@ func TestExecute_Add_UnresolvedVersionLeavesWildcard(t *testing.T) {
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"add", "clpfd"})
+	rootCmd.SetArgs([]string{"add", "aop"})
 	require.NoError(t, Execute())
 
 	pf, _, err := loadManifest(rootCmd)
 	require.NoError(t, err)
-	assert.Equal(t, "*", pf.Dependencies["clpfd"])
+	assert.Equal(t, "*", pf.Dependencies["aop"])
 }
 
 func TestExecute_Remove_UpdatesManifestAndSyncs(t *testing.T) {
@@ -337,7 +337,7 @@ func TestExecute_Remove_UpdatesManifestAndSyncs(t *testing.T) {
 	if pf.Dependencies == nil {
 		pf.Dependencies = map[string]string{}
 	}
-	pf.Dependencies["clpfd"] = "*"
+	pf.Dependencies["aop"] = "*"
 	require.NoError(t, manifest.Save(manifestPath, pf))
 
 	var called bool
@@ -349,13 +349,13 @@ func TestExecute_Remove_UpdatesManifestAndSyncs(t *testing.T) {
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"remove", "clpfd"})
+	rootCmd.SetArgs([]string{"remove", "aop"})
 	require.NoError(t, Execute())
 	require.True(t, called, "remove must sync manifest -> lock/install")
 
 	pf2, _, err := loadManifest(rootCmd)
 	require.NoError(t, err)
-	assert.NotContains(t, pf2.Dependencies, "clpfd")
+	assert.NotContains(t, pf2.Dependencies, "aop")
 }
 
 func TestExecute_Remove_MissingDependencyReturnsActionableError(t *testing.T) {
@@ -368,11 +368,11 @@ func TestExecute_Remove_MissingDependencyReturnsActionableError(t *testing.T) {
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"remove", "clpfd"})
+	rootCmd.SetArgs([]string{"remove", "aop"})
 	err := Execute()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not declared")
-	assert.Contains(t, err.Error(), "prolm add clpfd")
+	assert.Contains(t, err.Error(), "prolm add aop")
 }
 
 func TestExecute_Remove_SyncFailureRollsBackManifest(t *testing.T) {
@@ -384,7 +384,7 @@ func TestExecute_Remove_SyncFailureRollsBackManifest(t *testing.T) {
 	if pf.Dependencies == nil {
 		pf.Dependencies = map[string]string{}
 	}
-	pf.Dependencies["clpfd"] = "*"
+	pf.Dependencies["aop"] = "*"
 	require.NoError(t, manifest.Save(manifestPath, pf))
 
 	withRemoveRunner(t, &removeRunner{
@@ -394,13 +394,18 @@ func TestExecute_Remove_SyncFailureRollsBackManifest(t *testing.T) {
 	})
 
 	resetRootCmd(t)
-	rootCmd.SetArgs([]string{"remove", "clpfd"})
+	rootCmd.SetArgs([]string{"remove", "aop"})
 	err = Execute()
 	require.Error(t, err)
 
 	pf2, _, loadErr := loadManifest(rootCmd)
 	require.NoError(t, loadErr)
-	assert.Equal(t, "*", pf2.Dependencies["clpfd"], "manifest must roll back when sync fails")
+	assert.Equal(t, "*", pf2.Dependencies["aop"], "manifest must roll back when sync fails")
+}
+
+func TestAddCommandHelp_UsesInstallableExamplePack(t *testing.T) {
+	assert.Contains(t, addCmd.Long, "for example: aop")
+	assert.NotContains(t, addCmd.Long, "for example: clpfd")
 }
 
 func writeBasicManifest(t *testing.T, dir string) {

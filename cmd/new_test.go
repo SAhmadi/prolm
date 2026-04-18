@@ -73,6 +73,45 @@ func TestNew_WithRuntimeFlag_WritesRuntimeToManifest(t *testing.T) {
 	assert.Contains(t, string(data), `runtime = "scryer"`)
 }
 
+func TestNew_GlobalRuntimeFlag_WritesRuntimeToManifest(t *testing.T) {
+	binPath := buildSmokeBinary(t)
+	workspace := t.TempDir()
+	homeDir := filepath.Join(workspace, "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0755))
+
+	env := append(os.Environ(), "HOME="+homeDir, "NO_COLOR=1")
+
+	runSmokeCommand(t, binPath, workspace, env, "--runtime", "gnu", "new", "gnu-project")
+
+	data, readErr := os.ReadFile(filepath.Join(workspace, "gnu-project", "Prolfile.toml"))
+	require.NoError(t, readErr)
+	assert.Contains(t, string(data), `runtime = "gnu"`)
+}
+
+func TestNew_LocalRuntimeFlag_OverridesGlobalRuntimeFlag(t *testing.T) {
+	binPath := buildSmokeBinary(t)
+	workspace := t.TempDir()
+	homeDir := filepath.Join(workspace, "home")
+	require.NoError(t, os.MkdirAll(homeDir, 0755))
+
+	env := append(os.Environ(), "HOME="+homeDir, "NO_COLOR=1")
+
+	runSmokeCommand(
+		t,
+		binPath,
+		workspace,
+		env,
+		"--runtime", "gnu",
+		"new", "scryer-project",
+		"--runtime", "scryer",
+	)
+
+	data, readErr := os.ReadFile(filepath.Join(workspace, "scryer-project", "Prolfile.toml"))
+	require.NoError(t, readErr)
+	assert.Contains(t, string(data), `runtime = "scryer"`)
+	assert.NotContains(t, string(data), `runtime = "gnu"`)
+}
+
 func TestNew_Help_ExplainsTemplateStatus(t *testing.T) {
 	binPath := buildSmokeBinary(t)
 	workspace := t.TempDir()
@@ -89,5 +128,11 @@ func TestNew_Help_ExplainsTemplateStatus(t *testing.T) {
 	assert.Contains(t, out, "library  Planned for Phase 2")
 	assert.Contains(t, out, "cli      Planned for Phase 2")
 	assert.Contains(t, out, "--runtime string")
+	assert.Contains(t, out, "Flags:")
+	assert.Contains(t, out, "Global Flags:")
+	flagsSection := strings.SplitN(out, "Global Flags:", 2)[0]
+	globalSection := strings.SplitN(out, "Global Flags:", 2)[1]
+	assert.Contains(t, flagsSection, "--runtime string")
+	assert.NotContains(t, globalSection, "--runtime string")
 	assert.Contains(t, out, "project template: app (Phase 1 / 1.5) | library (Phase 2) | cli (Phase 2)")
 }
