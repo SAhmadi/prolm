@@ -414,6 +414,27 @@ func TestUnpack_TarBomb_TotalSize(t *testing.T) {
 	assert.Contains(t, limit.Reason, "total extracted size")
 }
 
+func TestUnpack_RejectsOversizedArchiveBeforeFormatDispatch(t *testing.T) {
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "oversized.tar.gz")
+	f, err := os.Create(archivePath)
+	require.NoError(t, err)
+	_, err = f.Seek(maxTarballSize()+1, 0)
+	require.NoError(t, err)
+	_, err = f.Write([]byte{0})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	destDir := filepath.Join(dir, "out")
+	err = Unpack(archivePath, destDir)
+	var limit *ErrExtractionLimit
+	require.ErrorAs(t, err, &limit)
+	assert.Contains(t, limit.Reason, "tarball size")
+
+	_, statErr := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(statErr))
+}
+
 func TestUnpack_NullByteInFilename(t *testing.T) {
 	// Go's tar reader truncates names at the first null byte (C-string semantics),
 	// so a name like "file\x00evil.pl" becomes "file" — which is safe.

@@ -13,7 +13,7 @@ never reuse a number, even after an issue is closed.
 | Prefix    | Meaning                          | Next ID |
 |-----------|----------------------------------|---------|
 | BUG       | Correctness bugs                 | BUG-023 |
-| SEC       | Security issues                  | SEC-019 |
+| SEC       | Security issues                  | SEC-020 |
 | DRY       | Code duplication / DRY violation | DRY-007 |
 | QUALITY   | Code quality / tech debt         | QUALITY-032 |
 | ERR       | Error handling issues            | ERR-005 |

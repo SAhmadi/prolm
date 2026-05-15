@@ -3,7 +3,6 @@ package installer
 import (
 	"archive/tar"
 	"archive/zip"
-	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -40,9 +39,30 @@ func (e *ErrExtractionLimit) Error() string {
 // Unpack extracts a .tar.gz tarball to destDir with full security checks (SEC-2, SEC-12, SEC-13).
 // On any violation, partial extraction is deleted and a hard error is returned.
 func Unpack(tarballPath string, destDir string) error {
-	data, err := os.ReadFile(tarballPath)
+	info, err := os.Stat(tarballPath)
 	if err != nil {
 		return fmt.Errorf("opening tarball: %w", err)
+	}
+	if info.Size() > maxTarballSize() {
+		return &ErrExtractionLimit{
+			Reason: fmt.Sprintf("tarball size %d bytes exceeds limit %d bytes", info.Size(), maxTarballSize()),
+		}
+	}
+
+	f, err := os.Open(tarballPath)
+	if err != nil {
+		return fmt.Errorf("opening tarball: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 4)
+	n, readErr := io.ReadFull(f, header)
+	if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
+		return fmt.Errorf("reading archive header: %w", readErr)
+	}
+	header = header[:n]
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewinding archive: %w", err)
 	}
 
 	// Create destDir; on any error, clean up partial extraction.
@@ -64,12 +84,12 @@ func Unpack(tarballPath string, destDir string) error {
 	}()
 
 	switch {
-	case isZIPArchive(data):
-		if err := unpackZIP(data, destDir, canonicalDestDir); err != nil {
+	case isZIPHeader(header):
+		if err := unpackZIP(tarballPath, destDir, canonicalDestDir); err != nil {
 			return err
 		}
-	case isGzipArchive(data):
-		if err := unpackTarGz(data, destDir, canonicalDestDir); err != nil {
+	case isGzipHeader(header):
+		if err := unpackTarGz(f, destDir, canonicalDestDir); err != nil {
 			return err
 		}
 	default:
@@ -80,8 +100,8 @@ func Unpack(tarballPath string, destDir string) error {
 	return nil
 }
 
-func unpackTarGz(data []byte, destDir, canonicalDestDir string) error {
-	gz, err := gzip.NewReader(bytes.NewReader(data))
+func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
+	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("decompressing tarball: %w", err)
 	}
@@ -195,11 +215,12 @@ func unpackTarGz(data []byte, destDir, canonicalDestDir string) error {
 	return nil
 }
 
-func unpackZIP(data []byte, destDir, canonicalDestDir string) error {
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+func unpackZIP(archivePath string, destDir, canonicalDestDir string) error {
+	zr, err := zip.OpenReader(archivePath)
 	if err != nil {
 		return fmt.Errorf("opening zip archive: %w", err)
 	}
+	defer zr.Close()
 
 	var totalSize int64
 	var fileCount int
@@ -298,16 +319,16 @@ func unpackZIP(data []byte, destDir, canonicalDestDir string) error {
 	return nil
 }
 
-func isGzipArchive(data []byte) bool {
-	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+func isGzipHeader(header []byte) bool {
+	return len(header) >= 2 && header[0] == 0x1f && header[1] == 0x8b
 }
 
-func isZIPArchive(data []byte) bool {
-	return len(data) >= 4 &&
-		data[0] == 'P' &&
-		data[1] == 'K' &&
-		(data[2] == 0x03 || data[2] == 0x05 || data[2] == 0x07) &&
-		(data[3] == 0x04 || data[3] == 0x06 || data[3] == 0x08)
+func isZIPHeader(header []byte) bool {
+	return len(header) >= 4 &&
+		header[0] == 'P' &&
+		header[1] == 'K' &&
+		(header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07) &&
+		(header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08)
 }
 
 // safeExtract validates that entryPath resolves safely within destDir.
