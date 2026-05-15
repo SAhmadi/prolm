@@ -27,7 +27,7 @@ Templates:
 		name := args[0]
 		tmpl, _ := cmd.Flags().GetString("template")
 		runtime, _ := cmd.Flags().GetString("runtime")
-		// --runtime is a global flag; default to SWI for `prolm new` when unset.
+		// Effective default for new projects is SWI when no runtime flag is set.
 		if runtime == "" {
 			runtime = "swi"
 		}
@@ -36,6 +36,7 @@ Templates:
 }
 
 func init() {
+	newCmd.Flags().String("runtime", "swi", "target runtime: swi | gnu | scryer")
 	newCmd.Flags().String("template", "app", "project template: app (Phase 1 / 1.5) | library (Phase 2) | cli (Phase 2)")
 	rootCmd.AddCommand(newCmd)
 }

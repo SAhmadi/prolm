@@ -7,7 +7,7 @@ import (
 )
 
 // Version is the current prolm version. Updated on release.
-const Version = "0.1.0-dev"
+const Version = "0.1.1-dev"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",

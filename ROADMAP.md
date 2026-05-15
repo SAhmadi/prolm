@@ -431,6 +431,7 @@ This is the most security-critical sub-phase.
 - [x] For URL-based adds, pin manifest constraint to `^<resolved-version>` instead of `*`
 - [x] If upstream checksum cannot be cross-verified for a derived archive URL, warn and continue with lockfile SHA-256 pinning
 - [x] Successful `add` should update `Prolfile.toml`, install the package, and write `Prolfile.lock`
+- [x] Keep add/remove docs and contract fixtures on installable package examples (`aop`) rather than built-in libraries
 - [x] Add `prolm remove <pack>` in the same phase so dependency lifecycle is symmetric
   - remove from `[dependencies]` by default
   - once `--dev` exists, allow removing from `[dev-dependencies]`
@@ -447,6 +448,9 @@ This is the most security-critical sub-phase.
   - `new --help`
   - `check -h`
   - `completion --help`
+- [x] Add regression tests for `new --runtime` contract:
+  - `new --help` must list `--runtime` under local command flags
+  - local `new --runtime` must override root/global `--runtime` when both are set
 - [x] Add assertions that user-facing help contains no internal-document references
 - [x] Add doc checks or snapshot-style coverage to keep `docs/command-central.md` aligned with the live CLI
 
@@ -473,7 +477,7 @@ This is the most security-critical sub-phase.
 
 ### 2.2 — Lockfile staleness detection and `--frozen`
 
-- [ ] Compute `prolfile_hash` as SHA-256 of serialized `[dependencies]` + `[dev-dependencies]`
+- [x] Compute `prolfile_hash` as SHA-256 of serialized `[dependencies]` + `[dev-dependencies]`
 - [ ] `lockfile.IsUpToDate(manifest, lock)` — compare hash to `[meta].prolfile_hash`
 - [ ] On `prolm install`: if stale, re-resolve from manifest
 - [ ] `--frozen` flag: error if lock would change

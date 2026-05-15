@@ -52,7 +52,7 @@ var addCmd = &cobra.Command{
 the install flow to synchronize Prolfile.lock and local store state.
 
 Supported inputs in Phase 1.5:
-  - SWI package names (for example: clpfd)
+  - SWI package names (for example: aop)
   - SWI package URLs
   - GitHub package URLs`,
 	Args: cobra.ExactArgs(1),

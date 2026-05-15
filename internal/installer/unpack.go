@@ -2,6 +2,7 @@ package installer
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -38,19 +39,31 @@ func (e *ErrExtractionLimit) Error() string {
 // Unpack extracts a .tar.gz tarball to destDir with full security checks (SEC-2, SEC-12, SEC-13).
 // On any violation, partial extraction is deleted and a hard error is returned.
 func Unpack(tarballPath string, destDir string) error {
+	info, err := os.Stat(tarballPath)
+	if err != nil {
+		return fmt.Errorf("opening tarball: %w", err)
+	}
+	if info.Size() > maxTarballSize() {
+		return &ErrExtractionLimit{
+			Reason: fmt.Sprintf("tarball size %d bytes exceeds limit %d bytes", info.Size(), maxTarballSize()),
+		}
+	}
+
 	f, err := os.Open(tarballPath)
 	if err != nil {
 		return fmt.Errorf("opening tarball: %w", err)
 	}
 	defer f.Close()
 
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("decompressing tarball: %w", err)
+	header := make([]byte, 4)
+	n, readErr := io.ReadFull(f, header)
+	if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
+		return fmt.Errorf("reading archive header: %w", readErr)
 	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
+	header = header[:n]
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("rewinding archive: %w", err)
+	}
 
 	// Create destDir; on any error, clean up partial extraction.
 	if err := os.MkdirAll(destDir, 0755); err != nil {
@@ -69,6 +82,32 @@ func Unpack(tarballPath string, destDir string) error {
 			os.RemoveAll(destDir)
 		}
 	}()
+
+	switch {
+	case isZIPHeader(header):
+		if err := unpackZIP(tarballPath, destDir, canonicalDestDir); err != nil {
+			return err
+		}
+	case isGzipHeader(header):
+		if err := unpackTarGz(f, destDir, canonicalDestDir); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported archive format")
+	}
+
+	success = true
+	return nil
+}
+
+func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("decompressing tarball: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
 
 	var totalSize int64
 	var fileCount int
@@ -173,8 +212,123 @@ func Unpack(tarballPath string, destDir string) error {
 		}
 	}
 
-	success = true
 	return nil
+}
+
+func unpackZIP(archivePath string, destDir, canonicalDestDir string) error {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return fmt.Errorf("opening zip archive: %w", err)
+	}
+	defer zr.Close()
+
+	var totalSize int64
+	var fileCount int
+
+	for _, file := range zr.File {
+		if strings.ContainsRune(file.Name, 0) {
+			return &ErrPathTraversal{EntryPath: "(contains null byte)"}
+		}
+		if filepath.IsAbs(file.Name) {
+			return &ErrPathTraversal{EntryPath: file.Name}
+		}
+
+		dest, err := safeExtract(destDir, file.Name)
+		if err != nil {
+			return err
+		}
+
+		info := file.FileInfo()
+		mode := info.Mode()
+
+		switch {
+		case info.IsDir():
+			if err := os.MkdirAll(dest, 0755); err != nil {
+				return fmt.Errorf("creating directory %s: %w", file.Name, err)
+			}
+		case mode&os.ModeSymlink != 0:
+			rc, err := file.Open()
+			if err != nil {
+				return fmt.Errorf("opening zip symlink %s: %w", file.Name, err)
+			}
+			targetBytes, err := io.ReadAll(io.LimitReader(rc, maxSingleFileSize+1))
+			rc.Close()
+			if err != nil {
+				return fmt.Errorf("reading zip symlink %s: %w", file.Name, err)
+			}
+			if int64(len(targetBytes)) > maxSingleFileSize {
+				return &ErrExtractionLimit{
+					Reason: fmt.Sprintf("symlink target %s exceeds %d bytes", file.Name, maxSingleFileSize),
+				}
+			}
+			target := string(targetBytes)
+			if err := validateSymlink(destDir, dest, target); err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+				return fmt.Errorf("creating parent directory: %w", err)
+			}
+			if err := os.Symlink(target, dest); err != nil {
+				return fmt.Errorf("creating symlink %s: %w", file.Name, err)
+			}
+			if resolved, evalErr := filepath.EvalSymlinks(dest); evalErr == nil {
+				if !strings.HasPrefix(
+					filepath.Clean(resolved)+string(os.PathSeparator),
+					canonicalDestDir+string(os.PathSeparator),
+				) {
+					return &ErrPathTraversal{
+						EntryPath: fmt.Sprintf("symlink chain escapes destination: %s -> %s", file.Name, resolved),
+					}
+				}
+			}
+		case mode&(os.ModeDevice|os.ModeNamedPipe|os.ModeSocket) != 0:
+			return &ErrPathTraversal{
+				EntryPath: fmt.Sprintf("%s (unsupported type)", file.Name),
+			}
+		default:
+			if file.UncompressedSize64 > uint64(maxSingleFileSize) {
+				return &ErrExtractionLimit{
+					Reason: fmt.Sprintf("file %s is %d bytes (max %d)", file.Name, file.UncompressedSize64, maxSingleFileSize),
+				}
+			}
+			totalSize += int64(file.UncompressedSize64)
+			if totalSize > maxExtractedSize {
+				return &ErrExtractionLimit{
+					Reason: fmt.Sprintf("total extracted size exceeds %d bytes", maxExtractedSize),
+				}
+			}
+			fileCount++
+			if fileCount > maxFileCount {
+				return &ErrExtractionLimit{
+					Reason: fmt.Sprintf("file count exceeds %d", maxFileCount),
+				}
+			}
+
+			rc, err := file.Open()
+			if err != nil {
+				return fmt.Errorf("opening zip entry %s: %w", file.Name, err)
+			}
+			err = extractRegularFile(dest, rc, int64(file.UncompressedSize64))
+			rc.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func isGzipHeader(header []byte) bool {
+	return len(header) >= 2 && header[0] == 0x1f && header[1] == 0x8b
+}
+
+func isZIPHeader(header []byte) bool {
+	return len(header) >= 4 &&
+		header[0] == 'P' &&
+		header[1] == 'K' &&
+		(header[2] == 0x03 || header[2] == 0x05 || header[2] == 0x07) &&
+		(header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08)
 }
 
 // safeExtract validates that entryPath resolves safely within destDir.

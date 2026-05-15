@@ -55,6 +55,9 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - `prolm new my-app`
   - `prolm new my-app --template app`
   - `prolm new my-app --runtime scryer`
+- Flag precedence:
+  - local `new --runtime` overrides root/global `--runtime` when both are provided
+  - if neither is provided, `new` defaults the project runtime to `swi`
 - Phase 1.5 follow-up:
   - verify shipped-binary missing-name behavior
   - improve `--template` help text
@@ -92,6 +95,8 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - `prolm install`
 - Notes:
   - `install` remains manifest-driven for Phase 1 and Phase 1.5
+  - generated lockfiles now include non-empty `[meta].prolfile_hash` values based on manifest dependencies
+  - empty lockfiles keep table-array shape by omitting package entries (no `package = []`)
   - `prolm` follows a cargo-style project workflow: `add`/`remove` mutate dependencies, `install` syncs from manifest+lock
   - no separate `prolm uninstall` command for project dependencies in this phase
 
@@ -108,6 +113,10 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - install the dependency
   - write/update `Prolfile.lock`
   - persist dependency constraints as `^<resolved-version>` when a stable version can be resolved; otherwise keep `*` with a warning
+- Examples:
+  - `prolm add aop`
+  - `prolm add https://www.swi-prolog.org/pack/list?p=aop`
+  - `prolm add https://github.com/hargettp/aop`
 - Notes:
   - SWI listing URLs are normalized to package-name installs
   - GitHub repository URLs are resolved to the latest stable semver tag/release (no HEAD fallback)
@@ -123,6 +132,8 @@ Canonical command-surface reference for the current CLI, future website docs, an
 - Current behavior:
   - remove from `[dependencies]` by default
   - return a clear error/hint if the package is not declared
+- Examples:
+  - `prolm remove aop`
 - Future behavior:
   - once `--dev` exists, support removal from `[dev-dependencies]`
 - Notes:
@@ -132,6 +143,9 @@ Canonical command-surface reference for the current CLI, future website docs, an
 ### `prolm update [pack]`
 
 - Status: `Phase 2`
+- Examples:
+  - `prolm update`
+  - `prolm update aop`
 
 ## Run and Test
 
@@ -231,6 +245,9 @@ Canonical command-surface reference for the current CLI, future website docs, an
 ### `prolm info <pack>[@version]`
 
 - Status: `Phase 3`
+- Examples:
+  - `prolm info aop`
+  - `prolm info aop@0.0.9`
 
 ### `prolm publish`
 

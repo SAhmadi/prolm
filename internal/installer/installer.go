@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/prolm/prolm/internal/httputil"
+	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -69,6 +70,11 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 			LockVersion: prolfile.CurrentLockVersion,
 		},
 	}
+	prolfileHash, err := lockfile.ComputeProlfileHash(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("computing prolfile hash: %w", err)
+	}
+	newLock.Meta.ProlfileHash = prolfileHash
 
 	for _, name := range names {
 		constraint := deps[name]

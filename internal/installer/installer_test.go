@@ -109,6 +109,9 @@ func TestInstall_FreshInstall(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, lf.Packages, 1)
+	assert.NotEmpty(t, lf.Meta.ProlfileHash)
+	assert.True(t, strings.HasPrefix(lf.Meta.ProlfileHash, "sha256:"))
+	assert.NotEqual(t, "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", lf.Meta.ProlfileHash)
 
 	assert.Equal(t, "clpfd", lf.Packages[0].Name)
 	assert.Equal(t, "1.4.3", lf.Packages[0].Version)
@@ -154,6 +157,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, lf.Packages, 1)
+	assert.NotEmpty(t, lf.Meta.ProlfileHash)
 	assert.Equal(t, "clpfd", lf.Packages[0].Name)
 	assert.Equal(t, "1.4.3", lf.Packages[0].Version)
 }

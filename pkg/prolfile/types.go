@@ -65,7 +65,7 @@ type LockEntry struct {
 // LockFile represents a parsed Prolfile.lock.
 type LockFile struct {
 	Meta     LockMeta    `toml:"meta"`
-	Packages []LockEntry `toml:"package"`
+	Packages []LockEntry `toml:"package,omitempty"`
 }
 
 // Dependency represents a rich dependency specification.

@@ -103,6 +103,10 @@ Examples:
   prolm new my-app --runtime scryer
 ```
 
+Precedence:
+- local `prolm new --runtime` overrides global `--runtime` when both are set
+- if neither is set, `prolm new` defaults to `swi`
+
 **What it creates (app template):**
 ```
 <name>/
@@ -187,7 +191,7 @@ Adds a dependency and re-runs install.
 prolm add <name|url>
 
 Examples:
-  prolm add clpfd
+  prolm add aop
   prolm add https://www.swi-prolog.org/pack/list?p=aop
   prolm add https://github.com/hargettp/aop
 ```
@@ -209,7 +213,7 @@ Removes a dependency from Prolfile.toml and updates the lock.
 prolm remove <pack> [flags]
 
 Examples:
-  prolm remove clpfd
+  prolm remove aop
 ```
 
 **Current status:** planned command, paired with `prolm add` for Phase 1.5 dependency lifecycle symmetry. `prolm remove` is the canonical removal command (no separate `prolm uninstall`).
@@ -228,7 +232,7 @@ Flags:
 
 Examples:
   prolm update              # update all deps within their semver constraints
-  prolm update clpfd        # update only clpfd
+  prolm update aop          # update only aop
 ```
 
 ---
@@ -360,8 +364,8 @@ Examples:
 prolm info <pack>[@version]
 
 Examples:
-  prolm info clpfd
-  prolm info clpfd@1.4.2
+  prolm info aop
+  prolm info aop@0.0.9
 ```
 
 ---
@@ -527,7 +531,7 @@ User runs: prolm run [entry]
   │                                                      │
   │  swipl -O                               (from flags) │
   │    --stack-limit=2g                     (from flags) │
-  │    -g "use_module('/path/clpfd/...')"   (dep 1)      │
+  │    -g "use_module('/path/aop/...')"     (dep 1)      │
   │    -g "use_module('/path/prosqlite/...')"(dep 2)     │
   │    -g "use_module('src/main')"          (entry)      │
   │    -g "main"                            (goal)       │
@@ -769,7 +773,7 @@ entry       = "src/main.pl"        # entrypoint for `prolm run`
 runtime     = "swi"                # swi | gnu | scryer
 
 [dependencies]
-clpfd       = "^1.4"
+aop         = "^0.0.9"
 prosqlite   = "^0.9"
 http        = "^7.0"
 
@@ -810,8 +814,8 @@ lock_version  = 1
 prolfile_hash = "sha256:e3b0c442..."   # hash of [dependencies] + [dev-dependencies]
 
 [[package]]
-name         = "clpfd"
-version      = "1.4.3"
+name         = "aop"
+version      = "0.0.9"
 source       = "swi-pack-index"        # swi-pack-index | github | prolm-registry
 url          = "https://..."
 checksum     = "sha256:a3f2c1d9..."    # SHA-256 of the downloaded tarball
@@ -840,6 +844,7 @@ dependencies = []
 - `prolm install --frozen` fails if the lock would change (use in CI)
 - Lockfile format must be forward-compatible — add fields, never remove
 - `[[package]]` entries MUST be sorted by name (deterministic output)
+- Empty locks must not emit `package = []`; omit package entries entirely when none are resolved
 - `dependencies` field enables `prolm tree` and easier debugging
 - `[meta] prolfile_hash` enables staleness detection without mtime
 - Install order is deterministic: topological sort of dependency graph,
@@ -1157,8 +1162,8 @@ Behaviour:
   - Locked installs: still install yanked versions if they are in Prolfile.lock
     (the user explicitly locked to this version; do not silently change it)
   - Warn loudly if a locked version is yanked:
-    "Warning: clpfd@1.4.2 is yanked: 'breaks clpb compat, use 1.4.3'
-     Run `prolm update clpfd` to move to a newer version."
+    "Warning: aop@0.0.8 is yanked: 'regression in advice dispatch, use 0.0.9'
+     Run `prolm update aop` to move to a newer version."
   - Never silently upgrade away from a yanked locked version
   - --frozen installs still succeed on yanked locked versions (with warning)
 ```
@@ -1886,11 +1891,11 @@ var rootCmd = &cobra.Command{
 
 ```go
 // Always wrap errors with context using %w
-return fmt.Errorf("installing clpfd: %w", err)
+return fmt.Errorf("installing aop: %w", err)
 
 // User-facing errors via ui package, not fmt.Println
-ui.Error("clpfd@1.4.3 not found in any registry")
-ui.Hint("Run `prolm search clpfd` to find available versions")
+ui.Error("aop@0.0.9 not found in any registry")
+ui.Hint("Run `prolm search aop` to find available versions")
 
 // Fatal only in main, never in internal packages
 // internal packages return errors, cmd layer decides to fatal

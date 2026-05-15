@@ -362,6 +362,10 @@ func TestSave_EmptyPackages(t *testing.T) {
 	}
 
 	require.NoError(t, Save(path, lf))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "package = []", "empty lockfiles must not encode package as inline array")
+	assert.NotContains(t, string(data), "[[package]]", "empty lockfiles must not emit package table blocks")
 
 	loaded, err := Load(path)
 	require.NoError(t, err)
@@ -424,6 +428,63 @@ func TestSave_NilDependenciesBecomesEmptySlice(t *testing.T) {
 	require.NoError(t, Save(path, lf))
 	data, _ := os.ReadFile(path)
 	assert.Contains(t, string(data), "dependencies = []", "nil dependencies must be serialized as empty array")
+}
+
+func TestComputeProlfileHash_EmptyDependencies(t *testing.T) {
+	pf := &prolfile.ProlFile{}
+	got, err := ComputeProlfileHash(pf)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		got,
+	)
+}
+
+func TestComputeProlfileHash_DeterministicAcrossMapOrder(t *testing.T) {
+	left := &prolfile.ProlFile{
+		Dependencies: map[string]string{
+			"b": "^2.0.0",
+			"a": "^1.0.0",
+		},
+		DevDependencies: map[string]string{
+			"z": "*",
+		},
+	}
+	right := &prolfile.ProlFile{
+		Dependencies: map[string]string{
+			"a": "^1.0.0",
+			"b": "^2.0.0",
+		},
+		DevDependencies: map[string]string{
+			"z": "*",
+		},
+	}
+
+	leftHash, err := ComputeProlfileHash(left)
+	require.NoError(t, err)
+	rightHash, err := ComputeProlfileHash(right)
+	require.NoError(t, err)
+	assert.Equal(t, leftHash, rightHash)
+}
+
+func TestComputeProlfileHash_ChangesWhenDependenciesChange(t *testing.T) {
+	base := &prolfile.ProlFile{
+		Dependencies: map[string]string{
+			"a": "^1.0.0",
+		},
+	}
+	changed := &prolfile.ProlFile{
+		Dependencies: map[string]string{
+			"a": "^1.1.0",
+		},
+	}
+
+	baseHash, err := ComputeProlfileHash(base)
+	require.NoError(t, err)
+	changedHash, err := ComputeProlfileHash(changed)
+	require.NoError(t, err)
+	assert.NotEqual(t, baseHash, changedHash)
 }
 
 // --- IsEmpty tests ---

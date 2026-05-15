@@ -2,6 +2,7 @@ package installer
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"fmt"
@@ -61,6 +62,42 @@ func writeTarGz(t *testing.T, dir string, entries []tarEntry) string {
 	return path
 }
 
+func writeZip(t *testing.T, dir string, entries []tarEntry) string {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	for _, e := range entries {
+		name := e.Name
+		if e.Typeflag == tar.TypeDir && !strings.HasSuffix(name, "/") {
+			name += "/"
+		}
+
+		hdr := &zip.FileHeader{Name: name, Method: zip.Deflate}
+		hdr.SetMode(0644)
+		if e.Typeflag == tar.TypeDir {
+			hdr.SetMode(os.ModeDir | 0755)
+		}
+		if e.Typeflag == tar.TypeSymlink {
+			hdr.Method = zip.Store
+			hdr.SetMode(os.ModeSymlink | 0777)
+		}
+
+		w, err := zw.CreateHeader(hdr)
+		require.NoError(t, err)
+		if len(e.Body) > 0 {
+			_, err = w.Write(e.Body)
+			require.NoError(t, err)
+		}
+	}
+
+	require.NoError(t, zw.Close())
+
+	path := filepath.Join(dir, "test.zip")
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0644))
+	return path
+}
+
 func TestUnpack_ValidTarball(t *testing.T) {
 	dir := t.TempDir()
 	tarball := writeTarGz(t, dir, []tarEntry{
@@ -74,6 +111,27 @@ func TestUnpack_ValidTarball(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify files exist.
+	content, err := os.ReadFile(filepath.Join(destDir, "pkg", "main.pl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "module(main")
+
+	content, err = os.ReadFile(filepath.Join(destDir, "pkg", "README.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "# My Pack\n", string(content))
+}
+
+func TestUnpack_ValidZipArchive(t *testing.T) {
+	dir := t.TempDir()
+	archive := writeZip(t, dir, []tarEntry{
+		{Name: "pkg/", Typeflag: tar.TypeDir},
+		{Name: "pkg/main.pl", Body: []byte(":- module(main, [main/0]).\nmain :- write('hello').\n")},
+		{Name: "pkg/README.md", Body: []byte("# My Pack\n")},
+	})
+
+	destDir := filepath.Join(dir, "out")
+	err := Unpack(archive, destDir)
+	require.NoError(t, err)
+
 	content, err := os.ReadFile(filepath.Join(destDir, "pkg", "main.pl"))
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "module(main")
@@ -160,6 +218,23 @@ func TestUnpack_SymlinkWithinDestDir(t *testing.T) {
 	require.NoError(t, err)
 
 	// Symlink should exist and be valid.
+	target, err := os.Readlink(filepath.Join(destDir, "sub", "link.pl"))
+	require.NoError(t, err)
+	assert.Equal(t, "real.pl", target)
+}
+
+func TestUnpack_ZipSymlinkWithinDestDir(t *testing.T) {
+	dir := t.TempDir()
+	archive := writeZip(t, dir, []tarEntry{
+		{Name: "sub/", Typeflag: tar.TypeDir},
+		{Name: "sub/real.pl", Body: []byte("content")},
+		{Name: "sub/link.pl", Typeflag: tar.TypeSymlink, Body: []byte("real.pl")},
+	})
+
+	destDir := filepath.Join(dir, "out")
+	err := Unpack(archive, destDir)
+	require.NoError(t, err)
+
 	target, err := os.Readlink(filepath.Join(destDir, "sub", "link.pl"))
 	require.NoError(t, err)
 	assert.Equal(t, "real.pl", target)
@@ -337,6 +412,27 @@ func TestUnpack_TarBomb_TotalSize(t *testing.T) {
 	var limit *ErrExtractionLimit
 	require.ErrorAs(t, err, &limit)
 	assert.Contains(t, limit.Reason, "total extracted size")
+}
+
+func TestUnpack_RejectsOversizedArchiveBeforeFormatDispatch(t *testing.T) {
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "oversized.tar.gz")
+	f, err := os.Create(archivePath)
+	require.NoError(t, err)
+	_, err = f.Seek(maxTarballSize()+1, 0)
+	require.NoError(t, err)
+	_, err = f.Write([]byte{0})
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	destDir := filepath.Join(dir, "out")
+	err = Unpack(archivePath, destDir)
+	var limit *ErrExtractionLimit
+	require.ErrorAs(t, err, &limit)
+	assert.Contains(t, limit.Reason, "tarball size")
+
+	_, statErr := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(statErr))
 }
 
 func TestUnpack_NullByteInFilename(t *testing.T) {
