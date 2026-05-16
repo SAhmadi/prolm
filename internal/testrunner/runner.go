@@ -46,7 +46,7 @@ type Runner struct {
 // safeFilter restricts test filter strings to a conservative alphabet so they
 // can be embedded in a Prolog goal without shell/atom escaping surprises.
 // Validated at call time; anything outside this set is rejected (SEC-9).
-var safeFilter = regexp.MustCompile(`^[A-Za-z0-9_:/-]+$`)
+var safeFilter = regexp.MustCompile(`^[A-Za-z0-9_:/.-]+$`)
 
 // Run invokes the Prolog runtime against testFiles+depPaths and parses the
 // output into a TestResult.
@@ -72,7 +72,7 @@ func (r *Runner) Run(
 	}
 
 	if opts.Filter != "" && !safeFilter.MatchString(opts.Filter) {
-		return nil, fmt.Errorf("invalid --filter %q: only [A-Za-z0-9_:/-] allowed", opts.Filter)
+		return nil, fmt.Errorf("invalid --filter %q: only [A-Za-z0-9_:/.-] allowed", opts.Filter)
 	}
 
 	timeout := opts.Timeout
@@ -84,10 +84,7 @@ func (r *Runner) Run(
 
 	args := rt.BuildTestArgs(testFiles, depPaths, flags)
 	if opts.Filter != "" {
-		// Inject a PlUnit filter option directly before the run_tests goal.
-		// The safeFilter regex above guarantees no single-quote injection.
-		filterGoal := fmt.Sprintf("set_test_options([filter('%s')])", opts.Filter)
-		args = append([]string{"-g", filterGoal}, args...)
+		args = replaceRunTestsGoal(args, filteredRunTestsGoal(opts.Filter))
 	}
 
 	execFn := r.Exec
@@ -122,4 +119,23 @@ func (r *Runner) Run(
 	}
 
 	return res, nil
+}
+
+func filteredRunTestsGoal(filter string) string {
+	escaped := strings.ReplaceAll(filter, "'", "''")
+	return fmt.Sprintf(
+		"findall(Unit:Test,(plunit:current_test(Unit,Test,_,_,_),atom_string(Test,S),sub_string(S,_,_,_,'%s')),Tests),run_tests(Tests)",
+		escaped,
+	)
+}
+
+func replaceRunTestsGoal(args []string, goal string) []string {
+	out := append([]string(nil), args...)
+	for i := 0; i < len(out)-1; i++ {
+		if out[i] == "-g" && out[i+1] == "run_tests" {
+			out[i+1] = goal
+			return out
+		}
+	}
+	return append(out, "-g", goal)
 }

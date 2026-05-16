@@ -3,6 +3,7 @@ package testrunner
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,8 +17,8 @@ type fakeRT struct {
 	gotFiles, gotDeps, gotFlags []string
 }
 
-func (f *fakeRT) Name() string                                          { return "swi" }
-func (f *fakeRT) Detect() (*runtime.RuntimeInfo, error)                 { return nil, nil }
+func (f *fakeRT) Name() string                                             { return "swi" }
+func (f *fakeRT) Detect() (*runtime.RuntimeInfo, error)                    { return nil, nil }
 func (f *fakeRT) BuildRunArgs(string, []string, []string, string) []string { return nil }
 func (f *fakeRT) BuildTestArgs(files, deps, flags []string) []string {
 	f.gotFiles = files
@@ -26,7 +27,7 @@ func (f *fakeRT) BuildTestArgs(files, deps, flags []string) []string {
 	return []string{"-g", "run_tests", "-t", "halt"}
 }
 func (f *fakeRT) BuildCheckArgs([]string, []string, []string) []string { return nil }
-func (f *fakeRT) Exec([]string) error                        { return nil }
+func (f *fakeRT) Exec([]string) error                                  { return nil }
 
 func TestRunner_NoFiles_NoExec(t *testing.T) {
 	called := false
@@ -96,6 +97,22 @@ func TestRunner_RejectsUnsafeFilter(t *testing.T) {
 	_, err := r.Run(context.Background(), "/bin/swipl", []string{"a_test.pl"}, nil, &fakeRT{}, nil, Options{Filter: "bad'; injected"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "filter")
+}
+
+func TestRunner_FilterUsesPlUnitCurrentTestGoal(t *testing.T) {
+	var gotArgs []string
+	r := &Runner{Exec: func(_ context.Context, _ string, args ...string) ([]byte, []byte, error) {
+		gotArgs = append([]string(nil), args...)
+		return []byte("% [1/1] main:hello .................................. passed (0.001 sec)\n"), nil, nil
+	}}
+	res, err := r.Run(context.Background(), "/bin/swipl", []string{"a_test.pl"}, nil, &fakeRT{}, nil, Options{Filter: "hello"})
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.Passed)
+
+	joined := strings.Join(gotArgs, " ")
+	assert.NotContains(t, joined, "set_test_options")
+	assert.Contains(t, joined, "plunit:current_test")
+	assert.Contains(t, joined, "run_tests(Tests)")
 }
 
 func TestRunner_DefaultTimeoutApplied(t *testing.T) {

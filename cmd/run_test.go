@@ -108,7 +108,8 @@ dependencies = []
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "main.pl"), []byte(":- module(main, []).\n"), 0644))
 
 	// Pre-populate the store: ~/.prolm-style layout — <storeDir>/<name>/<version>.
-	require.NoError(t, os.MkdirAll(filepath.Join(storeDir, "clpfd", "1.4.3"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(storeDir, "clpfd", "1.4.3", "prolog"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(storeDir, "clpfd", "1.4.3", "prolog", "clpfd.pl"), []byte(":- module(clpfd, []).\n"), 0644))
 }
 
 func newFakeRunner(storeDir string, fr *fakeRuntime) *runRunner {
@@ -140,7 +141,7 @@ func TestExecute_Run_HappyPath(t *testing.T) {
 	require.NoError(t, Execute())
 
 	assert.Equal(t, filepath.Join(dir, "src", "main.pl"), fr.gotRunEntry)
-	assert.Equal(t, []string{filepath.Join(storeDir, "clpfd", "1.4.3")}, fr.gotRunDeps)
+	assert.Equal(t, []string{filepath.Join(storeDir, "clpfd", "1.4.3", "prolog", "clpfd.pl")}, fr.gotRunDeps)
 	assert.Equal(t, "main", fr.gotRunGoal)
 	assert.Equal(t, []string{"BUILT", fr.gotRunEntry, "main"}, fr.gotExecArgs)
 }

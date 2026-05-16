@@ -20,9 +20,9 @@ type TestResult struct {
 	RawStderr string        `json:"-"`
 }
 
-// TestCase is a single PlUnit test result. Only failing/erroring cases are
-// reported individually; passing cases are only counted (PlUnit does not
-// print each passing test by default).
+// TestCase is a single PlUnit test result. Passing cases are captured when
+// PlUnit emits named progress lines; older PlUnit output may only expose pass
+// counts, so not every pass can always be named.
 type TestCase struct {
 	Suite   string `json:"suite"`
 	Name    string `json:"name"`
@@ -94,6 +94,16 @@ func Parse(stdout, stderr string) *TestResult {
 	for _, line := range strings.Split(combined, "\n") {
 		if m := reCasePass.FindStringSubmatch(line); len(m) == 3 {
 			passedCases++
+			key := m[1] + ":" + m[2]
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			res.Cases = append(res.Cases, TestCase{
+				Suite:  m[1],
+				Name:   m[2],
+				Status: "pass",
+			})
 			continue
 		}
 		if m := reLegacyPLUnitPass.FindStringSubmatch(line); len(m) == 2 {
