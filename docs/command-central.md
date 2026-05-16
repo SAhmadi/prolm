@@ -115,7 +115,7 @@ Canonical command-surface reference for the current CLI, future website docs, an
   - persist dependency constraints as `^<resolved-version>` when a stable version can be resolved; otherwise keep `*` with a warning
 - Examples:
   - `prolm add aop`
-  - `prolm add https://www.swi-prolog.org/pack/list?p=aop`
+  - `prolm add 'https://www.swi-prolog.org/pack/list?p=aop'`
   - `prolm add https://github.com/hargettp/aop`
 - Notes:
   - SWI listing URLs are normalized to package-name installs
