@@ -24,7 +24,4 @@ never reuse a number, even after an issue is closed.
 
 | ID | Severity | GitHub Issue | Phase |
 |----|----------|--------------|-------|
-| BUG-023 | High | [BUG-023 — installed dependencies are loaded from the package version directory instead of their Prolog module path](https://github.com/SAhmadi/prolm/issues/64) | Phase 1.5 |
-| BUG-024 | Medium | [BUG-024 — test --filter passes an invalid SWI-Prolog test option](https://github.com/SAhmadi/prolm/issues/65) | Phase 1.5 |
-| BUG-025 | Low | [BUG-025 — test --verbose does not print passing tests](https://github.com/SAhmadi/prolm/issues/66) | Phase 1.5 |
 | QUALITY-012 | Low    | [QUALITY-012 — syscall.Exec is Unix-only in SWIRuntime.Exec](https://github.com/SAhmadi/prolm/issues/10) | Before 4.7 |
