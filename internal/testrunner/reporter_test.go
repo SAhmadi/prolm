@@ -31,6 +31,28 @@ func TestReport_FailingListsCases(t *testing.T) {
 	assert.Contains(t, out, "1 failed")
 }
 
+func TestReport_VerboseListsPassingCases(t *testing.T) {
+	var buf bytes.Buffer
+	res := &TestResult{
+		Total: 1, Passed: 1,
+		Cases: []TestCase{{Suite: "main", Name: "hello", Status: "pass"}},
+	}
+	Report(res, &buf, ReportOptions{Verbose: true, NoColor: true})
+	out := buf.String()
+	assert.Contains(t, out, "main:hello")
+	assert.Contains(t, out, "1 passed")
+}
+
+func TestReport_NonVerboseOmitsPassingCases(t *testing.T) {
+	var buf bytes.Buffer
+	res := &TestResult{
+		Total: 1, Passed: 1,
+		Cases: []TestCase{{Suite: "main", Name: "hello", Status: "pass"}},
+	}
+	Report(res, &buf, ReportOptions{NoColor: true})
+	assert.NotContains(t, buf.String(), "main:hello")
+}
+
 func TestReport_JSON(t *testing.T) {
 	var buf bytes.Buffer
 	res := &TestResult{Total: 1, Passed: 1}

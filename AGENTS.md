@@ -192,7 +192,7 @@ prolm add <name|url>
 
 Examples:
   prolm add aop
-  prolm add https://www.swi-prolog.org/pack/list?p=aop
+  prolm add 'https://www.swi-prolog.org/pack/list?p=aop'
   prolm add https://github.com/hargettp/aop
 ```
 
@@ -216,7 +216,8 @@ Examples:
   prolm remove aop
 ```
 
-**Current status:** planned command, paired with `prolm add` for Phase 1.5 dependency lifecycle symmetry. `prolm remove` is the canonical removal command (no separate `prolm uninstall`).
+**Current status:** available in Phase 1.5 as `prolm remove <pack>`.
+`prolm remove` deletes the dependency from `Prolfile.toml` and refreshes the lock, pairing with `prolm add` for dependency lifecycle symmetry. `prolm remove` is the canonical removal command (no separate `prolm uninstall`).
 
 ---
 

@@ -12,10 +12,10 @@ never reuse a number, even after an issue is closed.
 
 | Prefix    | Meaning                          | Next ID |
 |-----------|----------------------------------|---------|
-| BUG       | Correctness bugs                 | BUG-023 |
+| BUG       | Correctness bugs                 | BUG-026 |
 | SEC       | Security issues                  | SEC-020 |
 | DRY       | Code duplication / DRY violation | DRY-007 |
-| QUALITY   | Code quality / tech debt         | QUALITY-032 |
+| QUALITY   | Code quality / tech debt         | QUALITY-033 |
 | ERR       | Error handling issues            | ERR-005 |
 
 ---

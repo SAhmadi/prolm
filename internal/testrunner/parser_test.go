@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse_AllPassed(t *testing.T) {
@@ -15,6 +16,15 @@ func TestParse_AllPassed(t *testing.T) {
 	assert.Equal(t, 2, res.Passed)
 	assert.Equal(t, 0, res.Failed)
 	assert.Equal(t, 0, res.Errors)
+}
+
+func TestParse_CapturesNamedPassingCases(t *testing.T) {
+	stdout := "% [1/1] main:hello .................................. passed (0.002 sec)\n"
+	res := Parse(stdout, "")
+
+	require.Len(t, res.Cases, 1)
+	assert.Equal(t, TestCase{Suite: "main", Name: "hello", Status: "pass"}, res.Cases[0])
+	assert.Equal(t, 1, res.Passed)
 }
 
 func TestParse_SWI10ProgressOutput_AllPassed(t *testing.T) {

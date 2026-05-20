@@ -40,10 +40,14 @@ func Report(res *TestResult, w io.Writer, opts ReportOptions) {
 	// Per-failure detail lines come first so the summary is the last thing the
 	// user sees on screen (easier to read in CI logs).
 	for _, c := range res.Cases {
-		if c.Status == "pass" {
+		if c.Status == "pass" && !opts.Verbose {
 			continue
 		}
-		red.Fprint(w, "  ✗  ")
+		if c.Status == "pass" {
+			green.Fprint(w, "  ✓  ")
+		} else {
+			red.Fprint(w, "  ✗  ")
+		}
 		fmt.Fprintf(w, "%s:%s", c.Suite, c.Name)
 		if c.Message != "" {
 			fmt.Fprintf(w, " — %s", c.Message)
