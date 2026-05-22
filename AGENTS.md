@@ -629,6 +629,14 @@ User runs: prolm publish
 
 ## 5. Codebase Structure
 
+### Codebase navigation notes
+
+Before immediately searching for a component or file location, consult the
+[Project Component Overview](docs/codebase-knowledge-graph/Project%20Component%20Overview.md).
+Use it as the first path map for the current codebase, then use `rg` when the
+overview is insufficient, may be stale, or the task needs symbol-level or
+behavior-level verification in source code.
+
 ```
 prolm/
 │
