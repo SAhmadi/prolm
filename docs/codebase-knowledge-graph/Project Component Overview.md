@@ -9,6 +9,24 @@ overview does not answer a symbol-level question.
 Tests are listed next to the code they protect. Descriptions match the current
 tree, not every future file shown in [[AGENTS]].
 
+## Start here
+
+| Component | First map | Code area |
+| --- | --- | --- |
+| CLI commands and command helpers | [[CLI Surface]] | [`cmd/`](../../cmd) |
+| Public metadata types | [[Project Files And Metadata]] | [`pkg/prolfile/`](../../pkg/prolfile) |
+| Manifest and lockfile persistence | [[Project Files And Metadata]] | [`internal/manifest/`](../../internal/manifest), [`internal/lockfile/`](../../internal/lockfile) |
+| Registry, fetch, verification, and store | [[Dependency Install Flow]] | [`internal/registry/`](../../internal/registry), [`internal/installer/`](../../internal/installer) |
+| Runtime, run, test, and check | [[Runtime Test And Check Flow]] | [`internal/runtime/`](../../internal/runtime), [`internal/testrunner/`](../../internal/testrunner), [`internal/checker/`](../../internal/checker) |
+| Project creation and CLI feedback | [[Scaffolding And UX]] | [`internal/scaffold/`](../../internal/scaffold), [`internal/ui/`](../../internal/ui) |
+
+## Maintenance
+
+Keep this manual map current when source files move, components are added, or
+subsystem ownership changes. After editing it, verify that local Markdown file
+links and Obsidian note links still resolve and that the current `cmd/`,
+`internal/`, `pkg/`, and `testdata/` files remain represented below.
+
 ## CLI entrypoints and command orchestration
 
 Related note: [[CLI Surface]].

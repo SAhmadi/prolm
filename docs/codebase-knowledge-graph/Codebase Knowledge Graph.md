@@ -32,7 +32,8 @@ search when behavior needs verification.
 
 ## Graph use
 
-Open this repository or its `docs/` tree as an Obsidian vault and use the local
-graph from this note to walk nearby components. Follow workflow notes when a
-task crosses packages. Follow the component overview when the task starts with
-"where does this live?"
+Open the repository root as the Obsidian vault so graph links can reach root
+references such as [[AGENTS]], [[ROADMAP]], and [[TESTING]] as well as notes
+under `docs/`. Use the local graph from this note to walk nearby components.
+Follow workflow notes when a task crosses packages. Follow the component
+overview when the task starts with "where does this live?"
