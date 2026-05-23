@@ -70,7 +70,7 @@ Scryer Prolog, and Windows compatibility remain future work.
 Release publishing lives in
 [`.github/workflows/release.yml`](.github/workflows/release.yml). It runs only
 for pushed tags matching `v*`, repeats the full Linux/macOS CI matrix, then uses
-GoReleaser to publish Linux and macOS archives, `checksums.txt`, release notes,
+GoReleaser to publish Linux and macOS archives, `checksums.txt`, release notes
 from `CHANGELOG.md`, and GitHub artifact attestations to the repository's
 Releases page.
 
