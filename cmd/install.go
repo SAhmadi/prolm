@@ -48,7 +48,7 @@ writes a fresh Prolfile.lock.`,
 func init() {
 	rootCmd.AddCommand(installCmd)
 
-	// --frozen and --offline are Phase 2 features (CLAUDE.md §7 / QUALITY-015).
+	// --frozen and --offline are Phase 2 features tracked in Command Central.
 	// Registering them now as stubs lets scripts fail fast with a useful message
 	// instead of cobra's "unknown flag" error.
 	installCmd.Flags().Bool("frozen", false, "[Phase 2] Fail if Prolfile.lock would change (not yet implemented)")
@@ -74,8 +74,8 @@ func (r *installRunner) run(cmd *cobra.Command, _ []string) error {
 	lockPath := filepath.Join(filepath.Dir(manifestPath), lockfile.LockFileName)
 	lock, err := lockfile.Load(lockPath)
 	if err != nil {
-		// §8.19: auto-heal a lockfile containing Git merge conflict markers
-		// by discarding it and re-resolving from Prolfile.toml.
+		// Auto-heal a lockfile containing Git merge conflict markers by
+		// discarding it and re-resolving from Prolfile.toml.
 		var conflictErr *lockfile.GitConflictError
 		if errors.As(err, &conflictErr) {
 			ui.Warn("Lockfile had merge conflicts — re-resolved from Prolfile.toml")

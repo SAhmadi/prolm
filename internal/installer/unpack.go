@@ -332,7 +332,7 @@ func isZIPHeader(header []byte) bool {
 }
 
 // safeExtract validates that entryPath resolves safely within destDir.
-// Implements the exact pattern from CLAUDE.md 8.5 (SEC-2).
+// Implements the safe archive containment check required by SEC-2.
 func safeExtract(destDir, entryPath string) (string, error) {
 	dest := filepath.Join(destDir, entryPath)
 	dest = filepath.Clean(dest)

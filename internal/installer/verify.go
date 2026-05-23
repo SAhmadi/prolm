@@ -91,8 +91,8 @@ func Verify(filePath string, expectedChecksum string) error {
 }
 
 // VerifyRegistryChecksum cross-checks a downloaded tarball against a checksum
-// advertised by the registry's API response (SEC-1, CLAUDE.md §8.6). This
-// closes the TOCTOU window between version lookup and lock entry creation.
+// advertised by the registry's API response (SEC-1). This closes the TOCTOU
+// window between version lookup and lock entry creation.
 //
 // Accepted formats for advertised:
 //   - "sha256:<64 hex>"  — verified via SHA-256

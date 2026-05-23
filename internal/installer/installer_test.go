@@ -327,10 +327,10 @@ func TestInstall_YankedVersionSkipped(t *testing.T) {
 	assert.Equal(t, "1.0.0", lf.Packages[0].Version) // Skipped yanked 2.0.0.
 }
 
-// TestInstall_RegistryChecksumMismatch verifies SEC-016 / CLAUDE.md §8.6:
-// when the registry advertises a checksum, the downloaded tarball must be
-// verified against THAT checksum (not just hashed and trusted) to close the
-// TOCTOU window between version lookup and lock entry creation.
+// TestInstall_RegistryChecksumMismatch verifies SEC-1: when the registry
+// advertises a checksum, the downloaded tarball must be verified against THAT
+// checksum (not just hashed and trusted) to close the TOCTOU window between
+// version lookup and lock entry creation.
 func TestInstall_RegistryChecksumMismatch(t *testing.T) {
 	storeDir, cacheDir := setupTestInstall(t)
 

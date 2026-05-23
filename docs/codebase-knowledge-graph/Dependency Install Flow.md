@@ -44,6 +44,7 @@ registry, installer, local store, checksum, and lockfile code.
 - [[CLI Surface]] owns dependency command input and output.
 - [`internal/httputil/retry.go`](../../internal/httputil/retry.go) provides
   retry behavior shared by HTTP callers.
-- [[AGENTS]] captures checksum, extraction, and supply chain rules that matter
-  here.
-
+- [[docs/security|Security Rules]] captures checksum, extraction, and trust
+  rules that matter here.
+- [[docs/package-manager-design|Package Manager Design]] summarizes the
+  dependency lifecycle and lockfile design constraints.

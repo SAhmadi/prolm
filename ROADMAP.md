@@ -2,7 +2,7 @@
 
 > Step-by-step build plan for **prolm** — the Prolog project manager.
 > Each sub-phase is a logical unit of work. Complete them in order (dependencies noted).
-> Derived from [CLAUDE.md](CLAUDE.md).
+> Derived from [AGENTS.md](AGENTS.md) and the focused references it links.
 
 ---
 
@@ -11,7 +11,7 @@
 ### 0.1 — Go module and directory skeleton
 
 - [x] Run `go mod init` with chosen module path
-- [x] Create directory tree per CLAUDE.md section 5:
+- [x] Create directory tree from the project component map:
   - `cmd/`
   - `internal/manifest/`, `internal/lockfile/`, `internal/resolver/`, `internal/registry/`, `internal/installer/`, `internal/runtime/`, `internal/scaffold/`, `internal/testrunner/`, `internal/checker/`, `internal/auth/`, `internal/ui/`
   - `pkg/prolfile/`
@@ -45,7 +45,7 @@
 
 *Depends on: 0.1*
 
-- [x] Define `ProlFile` struct matching Prolfile.toml schema (CLAUDE.md section 6):
+- [x] Define `ProlFile` struct matching the [Project Files](docs/project-files.md) schema:
   - `Meta` — `ProlfileVersion int`, `MinProlmVersion string`
   - `Package` — `Name`, `Version`, `Description`, `Authors []string`, `License`, `Homepage`, `Entry`, `Runtime`
   - `Dependencies map[string]string`
@@ -158,7 +158,7 @@ This is the most security-critical sub-phase.
   - Checksum format: `sha256:<hex>`
 - [x] `verify.go` — `ComputeChecksum(filePath) (string, error)`
 - [x] `unpack.go` — `Unpack(tarballPath, destDir) error`:
-  - Implement `safeExtract()` exactly as in CLAUDE.md 8.5 (SEC-2)
+  - Implement safe extraction per [Security Rules](docs/security.md) (SEC-2)
   - Reject absolute paths
   - Reject symlinks pointing outside destDir (SEC-13)
   - Reject hardlinks to files outside destDir
@@ -173,13 +173,13 @@ This is the most security-critical sub-phase.
   - `EnsureDir()` — create store dir with permissions 0755 (SEC-6)
   - File lock on `~/.prolm/store/.lock` for write ops (SEC-7)
 - [x] `installer.go` — `Install(manifest, lock, opts) (*LockFile, error)`:
-  - Full install flow per CLAUDE.md section 4 flow diagram
+  - Full install flow per [Package Manager Design](docs/package-manager-design.md)
   - For each dep: check lock -> check store -> fetch -> verify -> unpack
   - Validate lockfile URLs against known registry origins (SEC-14)
   - Never execute code from downloaded packs (SEC-3)
   - Write lockfile atomically (SEC-8)
 
-**Testing (adversarial — per 11.1):**
+**Testing (adversarial — see [TESTING.md](TESTING.md)):**
 - `verify_test.go`: checksum match, mismatch (deletes file), empty file, truncated file, bit-flipped content
 - `unpack_test.go`: path traversal (`../../.bashrc`, `/etc/passwd`), symlink escape, tar bomb, excessive file count, device files, invalid filenames (NULL bytes)
 - `fetch_test.go`: HTTP rejection, timeout, 429 backoff
@@ -206,7 +206,7 @@ This is the most security-critical sub-phase.
   - Run `swipl --version`, parse version
   - If not found: clear error with install URL (per 8.27)
   - If below `[runtime.swi].min_version`: error with version info
-  - `BuildRunArgs()`: assemble invocation per CLAUDE.md section 4 run flow diagram
+  - `BuildRunArgs()`: assemble invocation per [Package Manager Design](docs/package-manager-design.md)
   - `Exec()`: `syscall.Exec` to replace process (or `os/exec` when capturing output)
 
 **Testing:** Mock-based tests for argument assembly. Version parsing. Graceful error when swipl not found.
@@ -396,7 +396,7 @@ This is the most security-critical sub-phase.
 ### 1.5.4 — Help output and stub-flag consistency
 
 - [x] Remove internal authoring references from all user-facing help and errors
-  - No mentions of `CLAUDE.md`, Codex, ChatGPT, or similar in CLI output
+  - No mentions of `AGENTS.md`, Codex, ChatGPT, or similar in CLI output
 - [x] Mark stubbed or not-yet-implemented flags consistently in help text
 - [x] Define expected behavior for mixed flag combinations involving stubbed flags
 
@@ -460,7 +460,7 @@ This is the most security-critical sub-phase.
 
 ### 2.1 — Semver resolution and MVS algorithm
 
-- [ ] `internal/resolver/semver.go` — helpers wrapping `Masterminds/semver`: parse `^`, `~`, `>=`, `=`, `*` constraints (per CLAUDE.md section 6)
+- [ ] `internal/resolver/semver.go` — helpers wrapping `Masterminds/semver`: parse `^`, `~`, `>=`, `=`, `*` constraints (per [Project Files](docs/project-files.md))
 - [ ] `internal/resolver/graph.go` — build dependency graph from manifest + transitive deps
 - [ ] `internal/resolver/mvs.go` — Minimum Version Selection:
   - For each package, take maximum of minimum requirements
@@ -580,7 +580,7 @@ This is the most security-critical sub-phase.
 - [ ] `cmd/search.go` — `prolm search <term>` with `--tag`, `--author`, `--runtime`, `--sort`, `--limit`
   - Tabular output via `internal/ui/table.go`
 - [ ] `cmd/info.go` — `prolm info <pack>[@version]`
-- [ ] `cmd/publish.go` — pre-flight checks (all 5 from CLAUDE.md), build tarball, upload, `--dry-run`
+- [ ] `cmd/publish.go` — pre-flight checks from the command and roadmap references, build tarball, upload, `--dry-run`
 - [ ] `cmd/yank.go` — `prolm yank <version> --reason "..."`, `--undo` to un-yank
 - [ ] `cmd/owner.go` — `prolm owner list/add/remove`
 

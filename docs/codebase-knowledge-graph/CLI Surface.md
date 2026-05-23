@@ -13,8 +13,8 @@ contracts. Business logic should stay in the internal packages it calls.
   Cobra setup.
 - [`cmd/command_contract_test.go`](../../cmd/command_contract_test.go) protects
   the help and command-surface contract.
-- [[docs/command-central|command-central]] is the current documentation
-  reference for command status.
+- [[docs/command-central|command-central]] is the current and planned command
+  reference, with status on each command.
 
 ## Command clusters
 

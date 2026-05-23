@@ -32,6 +32,8 @@ runtime commands, and scaffolding.
 
 ## Reference docs
 
-- [[AGENTS]] contains the canonical Prolfile and lockfile reference.
+- [[docs/project-files|Project Files]] contains the Prolfile and lockfile format
+  reference.
+- [[docs/security|Security Rules]] covers lockfile and archive trust
+  invariants.
 - [[ROADMAP]] records which metadata behaviors are implemented by phase.
-
