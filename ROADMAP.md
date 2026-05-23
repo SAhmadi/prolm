@@ -454,6 +454,17 @@ This is the most security-critical sub-phase.
 - [x] Add assertions that user-facing help contains no internal-document references
 - [x] Add doc checks or snapshot-style coverage to keep `docs/command-central.md` aligned with the live CLI
 
+### 1.6 — CI/CD and release foundation
+
+- [x] Keep `make ci` as the required Linux/macOS quality gate for pull requests
+  and pushes to `main`
+- [x] Add GoReleaser snapshot build validation to non-release CI
+- [x] Publish GitHub Releases only from `v*` semver tags
+- [x] Build release archives for Linux and macOS, both `amd64` and `arm64`
+- [x] Publish `checksums.txt` and GitHub artifact attestations for release assets
+- [x] Inject the release tag into `prolm version` at build time
+- [x] Document the release runbook in `docs/releases.md`
+
 ---
 
 ## Phase 2: "Production hardening"

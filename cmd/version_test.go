@@ -34,6 +34,27 @@ func TestExecute_Version(t *testing.T) {
 	assert.Contains(t, out, Version)
 }
 
+func TestExecute_Version_UsesInjectedVersionVariable(t *testing.T) {
+	originalVersion := Version
+	Version = "1.2.3"
+	t.Cleanup(func() { Version = originalVersion })
+
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+		rootCmd.SetArgs(nil)
+	}()
+
+	rootCmd.SetArgs([]string{"version"})
+	err := Execute()
+	require.NoError(t, err)
+
+	assert.Equal(t, "prolm 1.2.3\n", buf.String())
+}
+
 func TestExecute_Help(t *testing.T) {
 	// NOTE: This test mutates the package-level rootCmd (SetArgs, SetOut, SetErr)
 	// and must NOT be run in parallel with other tests in this package.

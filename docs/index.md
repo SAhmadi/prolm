@@ -8,6 +8,8 @@ topic has both a codebase map and a reference spec.
 | Agent start point and guardrails | [AGENTS.md](../AGENTS.md) |
 | Current and planned CLI command catalog | [Command Central](command-central.md) |
 | Local checks, CI, test ownership, and testing conventions | [TESTING.md](../TESTING.md) |
+| Release tagging, GitHub Releases, and binary verification | [Release Runbook](releases.md) |
+| User-facing release history | [CHANGELOG.md](../CHANGELOG.md) |
 | Implementation phases and future work sequencing | [ROADMAP.md](../ROADMAP.md) |
 | Known-issue ID counters and issue index | [BUGS.md](../BUGS.md) |
 | `Prolfile.toml` and `Prolfile.lock` reference | [Project Files](project-files.md) |
