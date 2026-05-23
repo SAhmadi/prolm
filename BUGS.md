@@ -17,6 +17,7 @@ never reuse a number, even after an issue is closed.
 | DRY       | Code duplication / DRY violation | DRY-007 |
 | QUALITY   | Code quality / tech debt         | QUALITY-033 |
 | ERR       | Error handling issues            | ERR-005 |
+| SUGGEST   | Future improvement suggestions   | SUGGEST-002 |
 
 ---
 
