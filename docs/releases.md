@@ -11,6 +11,9 @@ Releases. Release tags are the only publishing trigger.
   `arm64`.
 - Windows binaries, package-manager taps, and signing keys are deferred until
   the release cadence and runtime support are steadier.
+- GitHub artifact attestations are skipped while this repository is user-owned
+  and private; enable them by making the repository public or moving to a
+  supported repository type.
 
 ## Preflight
 
@@ -53,7 +56,8 @@ After the workflow completes:
 1. Open the GitHub Releases page and confirm the new release is visible.
 2. Confirm the four Linux/macOS archives and `checksums.txt` are attached.
 3. Confirm the release notes match the relevant `CHANGELOG.md` summary.
-4. Confirm GitHub artifact attestations were created for the checksum file.
+4. If the repository is public or otherwise supports attestations, confirm
+   GitHub artifact attestations were created for the checksum file.
 5. Download one archive, unpack it, and verify the binary reports the tag:
 
 ```bash

@@ -80,6 +80,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest release artifacts
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest@v4
         with:
           subject-checksums: ./dist/checksums.txt
+
+      - name: Skip artifact attestations for private repository
+        if: ${{ github.event.repository.private }}
+        run: |
+          echo "GitHub artifact attestations are unavailable for user-owned private repositories."
+          echo "Release archives and checksums were still published."

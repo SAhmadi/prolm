@@ -72,7 +72,9 @@ Release publishing lives in
 for pushed tags matching `v*`, repeats the full Linux/macOS CI matrix, then uses
 GoReleaser to publish Linux and macOS archives, `checksums.txt`, release notes
 from `CHANGELOG.md`, and GitHub artifact attestations to the repository's
-Releases page.
+Releases page. Artifact attestations are skipped while the repository is a
+user-owned private repository because GitHub does not support that feature for
+this repository type.
 
 See [Release Runbook](docs/releases.md) before tagging a public release.
 
