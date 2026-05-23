@@ -185,7 +185,7 @@ func (s *SWIRuntime) BuildTestArgs(testFiles []string, deps []string, flags []st
 // auto-loading undefined predicates during the analysis pass, which reduces
 // the execution surface. Note: :- initialization(Goal) directives present in
 // the loaded source are still executed by swipl; this is an inherent
-// limitation of SWI-Prolog's load mechanism documented in CLAUDE.md §8.15.
+// limitation of SWI-Prolog's load mechanism.
 //
 // Result: [flags...] [-g "use_module('dep')" ...] [-g "load_files(['file'],[if(true),autoload(false)])" ...] -t halt
 func (s *SWIRuntime) BuildCheckArgs(files []string, deps []string, flags []string) []string {

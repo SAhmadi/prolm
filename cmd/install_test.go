@@ -195,9 +195,9 @@ func TestExecute_Install_RegistryError(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing-pack")
 }
 
-// TestExecute_Install_GitConflictedLockfile verifies CLAUDE.md §8.19:
-// a Prolfile.lock containing Git merge conflict markers must be auto-healed
-// by discarding the conflicted lock and re-resolving from Prolfile.toml.
+// TestExecute_Install_GitConflictedLockfile verifies that a Prolfile.lock
+// containing Git merge conflict markers is auto-healed by discarding the
+// conflicted lock and re-resolving from Prolfile.toml.
 func TestExecute_Install_GitConflictedLockfile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

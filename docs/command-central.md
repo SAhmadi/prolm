@@ -22,8 +22,6 @@ different status and are annotated where that matters.
 
 **Status:** `Available`
 
-Status: `Available`
-
 ```text
 prolm [command]
 ```

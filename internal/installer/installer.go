@@ -58,7 +58,7 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 
 	deps := allDeps(manifest)
 
-	// Deterministic install order: sort dependency names alphabetically (CLAUDE.md §6).
+	// Deterministic install order: sort dependency names alphabetically.
 	names := make([]string, 0, len(deps))
 	for n := range deps {
 		names = append(names, n)

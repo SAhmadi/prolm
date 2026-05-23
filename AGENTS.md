@@ -134,6 +134,9 @@ These invariants must survive every implementation:
   command.
 - Keep flow visuals in the [Command Flow Map](docs/codebase-knowledge-graph/Command%20Flow%20Map.canvas)
   and searchable flow navigation in [Flow Diagrams](docs/flow-diagrams.md).
+- The Obsidian Canvas flow map is fine to keep as the visual source, but every
+  flow it owns must remain discoverable through GitHub-readable Markdown,
+  especially [Flow Diagrams](docs/flow-diagrams.md).
 - Keep current path maps in the codebase knowledge graph rather than copying
   package trees into this file.
 - Keep phase sequencing and open implementation work in

@@ -149,7 +149,7 @@ func TestCommandCentralDocTracksPublicSurface(t *testing.T) {
 
 	doc := string(data)
 	assert.Contains(t, doc, "prolm completion")
-	assert.Contains(t, doc, "Status: `Available`")
+	assert.Regexp(t, "(?m)(\\*\\*Status:\\*\\*|Status:)\\s+`Available`", doc)
 	assert.Contains(t, doc, "prolm add <name|url>")
 	assert.Contains(t, doc, "prolm remove <pack>")
 	assert.Contains(t, doc, "macOS (zsh)")
