@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: prolm
+
+builds:
+  - id: prolm
+    main: .
+    binary: prolm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/prolm/prolm/cmd.Version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: prolm
+    ids:
+      - prolm
+    formats:
+      - tar.gz
+    name_template: >-
+      prolm_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}
+    files:
+      - LICENSE*
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: SAhmadi
+    name: prolm
+  draft: false
+  prerelease: auto
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

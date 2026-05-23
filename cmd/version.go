@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is the current prolm version. Updated on release.
-const Version = "0.1.1-dev"
+// Version is the current prolm version. Release builds override it with ldflags.
+var Version = "0.1.1-dev"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",

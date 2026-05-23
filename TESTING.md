@@ -52,18 +52,29 @@ go test ./cmd -run TestSmoke_EndToEndPhase1Acceptance -count=1
 
 Use `-count=1` when a result must bypass Go's test cache.
 
-## CI
+## CI And Releases
 
 The workflow lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-and runs for pull requests and pushes targeting `main`.
+and runs for pull requests and pushes targeting `main`. It is the non-release
+quality gate: every run installs SWI-Prolog, installs `staticcheck`, and runs
+`make ci` on Linux and macOS.
 
 | Job | Runner | Current behavior |
 | --- | --- | --- |
 | `test` | Ubuntu and macOS matrix | Installs SWI-Prolog and `staticcheck`, then runs `make ci`. |
-| `build` | Ubuntu | Builds `prolm` and uploads the Linux binary after test jobs pass. |
+| `snapshot` | Ubuntu | Runs a GoReleaser snapshot build after tests pass. It validates release packaging but does not publish artifacts. |
 
 The CI test job currently covers SWI-Prolog on Linux and macOS. GNU Prolog,
 Scryer Prolog, and Windows compatibility remain future work.
+
+Release publishing lives in
+[`.github/workflows/release.yml`](.github/workflows/release.yml). It runs only
+for pushed tags matching `v*`, repeats the full Linux/macOS CI matrix, then uses
+GoReleaser to publish Linux and macOS archives, `checksums.txt`, release notes,
+from `CHANGELOG.md`, and GitHub artifact attestations to the repository's
+Releases page.
+
+See [Release Runbook](docs/releases.md) before tagging a public release.
 
 The full GitHub Actions workflow can also be exercised locally with `act` when
 Docker is available:
