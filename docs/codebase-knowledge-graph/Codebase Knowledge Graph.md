@@ -23,12 +23,18 @@ search when behavior needs verification.
 
 ## Project references
 
-- [[AGENTS]] is the authoritative project reference and engineering rule set.
+- [[AGENTS]] is the short agent entry point and reference index.
+- [[docs/project-files|Project Files]], [[docs/security|Security Rules]], and
+  [[docs/package-manager-design|Package Manager Design]] hold focused format,
+  trust, and dependency-design references.
+- [[docs/index|Documentation Index]] names the canonical role of each document.
 - [[ROADMAP]] tracks implementation phases and accepted work.
 - [[TESTING]] defines the testing strategy.
-- [[docs/command-central|command-central]] tracks the current command surface.
-- [[docs/testing|docs/testing]] captures focused testing documentation under
-  `docs/`.
+- [[docs/command-central|command-central]] tracks the current and planned
+  command surface.
+- [[docs/flow-diagrams|Flow Diagrams]] indexes visual command flows.
+- [[Command Flow Map]] is the Canvas view for command and version-resolution
+  flows.
 
 ## Graph use
 

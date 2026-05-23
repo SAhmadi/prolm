@@ -7,7 +7,8 @@ component-level lookup aid. Verify behavior in source and use `rg` when this
 overview does not answer a symbol-level question.
 
 Tests are listed next to the code they protect. Descriptions match the current
-tree, not every future file shown in [[AGENTS]].
+tree; future work belongs in [[ROADMAP]] and focused references linked from
+[[AGENTS]].
 
 ## Start here
 
@@ -199,9 +200,14 @@ Related notes: [[CLI Surface]] and [[Scaffolding And UX]].
 | [`testdata/valid-project/Prolfile.toml`](../../testdata/valid-project/Prolfile.toml) | Fixture manifest for a valid Prolog project. |
 | [`testdata/valid-project/src/main.pl`](../../testdata/valid-project/src/main.pl) | Fixture source entry for valid project tests. |
 | [`testdata/valid-project/tests/main_test.pl`](../../testdata/valid-project/tests/main_test.pl) | Fixture Prolog test for valid project tests. |
-| [`AGENTS.md`](../../AGENTS.md) | Authoritative project reference, rules, future structure, and security notes. |
+| [`AGENTS.md`](../../AGENTS.md) | Short agent entry point and reference index. |
 | [`ROADMAP.md`](../../ROADMAP.md) | Implementation phase plan and completion tracking. |
 | [`TESTING.md`](../../TESTING.md) | Testing strategy reference. |
-| [`docs/command-central.md`](../command-central.md) | Current command surface reference. |
-| [`docs/testing.md`](../testing.md) | Focused testing notes under docs. |
+| [`docs/index.md`](../index.md) | Documentation ownership and navigation index. |
+| [`docs/command-central.md`](../command-central.md) | Current and planned command surface reference. |
+| [`docs/flow-diagrams.md`](../flow-diagrams.md) | Markdown index for visual command flows. |
+| [`docs/codebase-knowledge-graph/Command Flow Map.canvas`](Command%20Flow%20Map.canvas) | Obsidian Canvas flow map for install, run, publish, and resolution. |
+| [`docs/project-files.md`](../project-files.md) | Prolfile and lockfile format reference. |
+| [`docs/security.md`](../security.md) | Package acquisition and trust rules. |
+| [`docs/package-manager-design.md`](../package-manager-design.md) | Dependency, reproducibility, and runtime design notes. |
 | [`BUGS.md`](../../BUGS.md) | Known bug and follow-up tracking. |
