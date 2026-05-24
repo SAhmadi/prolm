@@ -262,6 +262,59 @@ func TestInstall_MultiplePackages(t *testing.T) {
 	assert.Equal(t, "pack-c", lf.Packages[2].Name)
 }
 
+func TestInstall_InstallsTransitiveDependenciesFromResolver(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	tarballRoot := makeTarball(t, map[string]string{"root/main.pl": "root."})
+	tarballShared := makeTarball(t, map[string]string{"shared/main.pl": "shared."})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "root"):
+			w.Write(tarballRoot)
+		case strings.Contains(r.URL.Path, "shared"):
+			w.Write(tarballShared)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"root": {
+				{Name: "root", Version: "1.0.0", Dependencies: []string{"shared@>=1.2.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+				{Name: "shared", Version: "1.2.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"root@1.0.0":   srv.URL + "/root-1.0.0.tar.gz",
+			"shared@1.2.0": srv.URL + "/shared-1.2.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"root": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 2)
+	assert.Equal(t, "root", lf.Packages[0].Name)
+	assert.Equal(t, "shared", lf.Packages[1].Name)
+	assert.Equal(t, []string{"shared@1.2.0"}, lf.Packages[0].Dependencies)
+
+	store := NewStore(storeDir)
+	assert.True(t, store.IsInstalled("root", "1.0.0"))
+	assert.True(t, store.IsInstalled("shared", "1.2.0"))
+}
+
 func TestInstall_ContextCancellation(t *testing.T) {
 	storeDir, cacheDir := setupTestInstall(t)
 

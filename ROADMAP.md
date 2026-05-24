@@ -471,17 +471,17 @@ This is the most security-critical sub-phase.
 
 ### 2.1 — Semver resolution and MVS algorithm
 
-- [ ] `internal/resolver/semver.go` — helpers wrapping `Masterminds/semver`: parse `^`, `~`, `>=`, `=`, `*` constraints (per [Project Files](docs/project-files.md))
-- [ ] `internal/resolver/graph.go` — build dependency graph from manifest + transitive deps
-- [ ] `internal/resolver/mvs.go` — Minimum Version Selection:
+- [x] `internal/resolver/semver.go` — helpers wrapping `Masterminds/semver`: parse `^`, `~`, `>=`, `=`, `*` constraints (per [Project Files](docs/project-files.md))
+- [x] `internal/resolver/graph.go` — build dependency graph from manifest + transitive deps
+- [x] `internal/resolver/mvs.go` — Minimum Version Selection:
   - For each package, take maximum of minimum requirements
   - Never silently cross a major version boundary
-- [ ] `internal/resolver/resolver.go` — `Resolve(manifest, registries) (*LockFile, error)`
-- [ ] Circular dependency detection via DFS with color marking — hard error with cycle path
-- [ ] Pre-release handling: `^1.4` does NOT match `1.4.0-beta.1` (per 8.1)
-- [ ] Zero major: `^0.4.2` means `>=0.4.2, <0.5.0` (per 8.1)
-- [ ] Strip `v` prefix on ingest (per 8.1)
-- [ ] Fuzz tests for semver constraint parsing
+- [x] `internal/resolver/resolver.go` — `Resolve(manifest, registries) (*LockFile, error)`
+- [x] Circular dependency detection via DFS with color marking — hard error with cycle path
+- [x] Pre-release handling: `^1.4` does NOT match `1.4.0-beta.1` (per 8.1)
+- [x] Zero major: `^0.4.2` means `>=0.4.2, <0.5.0` (per 8.1)
+- [x] Strip `v` prefix on ingest (per 8.1)
+- [x] Fuzz tests for semver constraint parsing
 
 **Testing (table-driven):** Diamond dep, conflict (clear error naming both dependents), yanked version skip, circular dep, missing package, version-not-exist.
 **Security:** SEC-9.
