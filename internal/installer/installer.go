@@ -213,6 +213,10 @@ func lockCoversInstalledManifest(lock *prolfile.LockFile, manifest *prolfile.Pro
 	if lock == nil || len(lock.Packages) == 0 {
 		return false
 	}
+	prolfileHash, err := lockfile.ComputeProlfileHash(manifest)
+	if err != nil || lock.Meta.ProlfileHash != prolfileHash {
+		return false
+	}
 	for name := range allDeps(manifest) {
 		if findLockEntry(lock, name) == nil {
 			return false

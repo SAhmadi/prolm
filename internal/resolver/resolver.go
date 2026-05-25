@@ -43,6 +43,7 @@ func Resolve(ctx context.Context, manifest *prolfile.ProlFile, reg registry.Regi
 			return nil, err
 		}
 	}
+	r.pruneUnreachable(roots)
 
 	lf := &prolfile.LockFile{
 		Meta: prolfile.LockMeta{
@@ -108,11 +109,22 @@ func (r *resolution) resolvePackage(ctx context.Context, name string) error {
 	}
 	r.selected[name] = selected
 
+	oldDeps := r.deps[name]
 	deps, err := parseDependencySpecs(selected.Dependencies)
 	if err != nil {
 		return fmt.Errorf("%s@%s has invalid dependency metadata: %w", name, selected.Version, err)
 	}
+	removedDeps := r.dropRemovedDependencyRequirements(name, oldDeps, deps)
 	r.deps[name] = deps
+
+	for _, depName := range removedDeps {
+		if len(r.requirements[depName]) == 0 || r.color[depName] == 1 {
+			continue
+		}
+		if err := r.resolvePackage(ctx, depName); err != nil {
+			return err
+		}
+	}
 
 	for _, dep := range deps {
 		r.requirements[dep.Name] = appendOrReplaceRequirement(r.requirements[dep.Name], requirement{
@@ -149,6 +161,51 @@ func appendOrReplaceRequirement(reqs []requirement, next requirement) []requirem
 	return append(reqs, next)
 }
 
+func removeRequirementByDependent(reqs []requirement, dependent string) ([]requirement, bool) {
+	filtered := reqs[:0]
+	removed := false
+	for _, req := range reqs {
+		if req.Dependent == dependent {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, req)
+	}
+	return filtered, removed
+}
+
+func (r *resolution) dropRemovedDependencyRequirements(dependent string, oldDeps, newDeps []dependencySpec) []string {
+	if len(oldDeps) == 0 {
+		return nil
+	}
+	next := make(map[string]bool, len(newDeps))
+	for _, dep := range newDeps {
+		next[dep.Name] = true
+	}
+
+	var removed []string
+	for _, old := range oldDeps {
+		if next[old.Name] {
+			continue
+		}
+		reqs, ok := r.requirements[old.Name]
+		if !ok {
+			continue
+		}
+		filtered, changed := removeRequirementByDependent(reqs, dependent)
+		if !changed {
+			continue
+		}
+		if len(filtered) == 0 {
+			delete(r.requirements, old.Name)
+		} else {
+			r.requirements[old.Name] = filtered
+		}
+		removed = append(removed, old.Name)
+	}
+	return removed
+}
+
 func (r *resolution) lockDependencyEdges(name string) []string {
 	deps := r.deps[name]
 	edges := make([]string, 0, len(deps))
@@ -159,4 +216,31 @@ func (r *resolution) lockDependencyEdges(name string) []string {
 	}
 	sort.Strings(edges)
 	return edges
+}
+
+func (r *resolution) pruneUnreachable(roots []string) {
+	reachable := make(map[string]bool)
+	var visit func(string)
+	visit = func(name string) {
+		if reachable[name] {
+			return
+		}
+		if _, ok := r.selected[name]; !ok {
+			return
+		}
+		reachable[name] = true
+		for _, dep := range r.deps[name] {
+			visit(dep.Name)
+		}
+	}
+
+	for _, root := range roots {
+		visit(root)
+	}
+	for name := range r.selected {
+		if !reachable[name] {
+			delete(r.selected, name)
+			delete(r.deps, name)
+		}
+	}
 }

@@ -72,6 +72,93 @@ func TestResolve_DiamondDependency(t *testing.T) {
 	assert.Equal(t, []string{"shared@1.4.0"}, lf.Packages[1].Dependencies)
 }
 
+func TestResolve_PrunesDependenciesFromReplacedVersion(t *testing.T) {
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha": {
+				{Name: "alpha", Version: "1.0.0", Dependencies: []string{"shared@>=1.0.0"}},
+			},
+			"bravo": {
+				{Name: "bravo", Version: "1.0.0", Dependencies: []string{"shared@>=2.0.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+				{Name: "shared", Version: "1.0.0", Dependencies: []string{"legacy@*"}},
+			},
+			"legacy": {
+				{Name: "legacy", Version: "1.0.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0":  "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+			"bravo@1.0.0":  "https://www.swi-prolog.org/pack/bravo-1.0.0.tar.gz",
+			"shared@2.0.0": "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+			"legacy@1.0.0": "https://www.swi-prolog.org/pack/legacy-1.0.0.tar.gz",
+		},
+	}
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"bravo": "*", "alpha": "*"},
+	}
+
+	lf, err := Resolve(context.Background(), manifest, reg)
+	require.NoError(t, err)
+
+	require.Len(t, lf.Packages, 3)
+	assert.Equal(t, []string{"alpha", "bravo", "shared"}, []string{
+		lf.Packages[0].Name,
+		lf.Packages[1].Name,
+		lf.Packages[2].Name,
+	})
+	assert.Equal(t, "2.0.0", lf.Packages[2].Version)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[0].Dependencies)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[1].Dependencies)
+}
+
+func TestResolve_DropsRequirementsFromReplacedVersion(t *testing.T) {
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha": {
+				{Name: "alpha", Version: "1.0.0", Dependencies: []string{"shared@>=1.0.0"}},
+			},
+			"beta": {
+				{Name: "beta", Version: "1.0.0", Dependencies: []string{"legacy@>=1.0.0"}},
+			},
+			"zulu": {
+				{Name: "zulu", Version: "1.0.0", Dependencies: []string{"shared@>=2.0.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+				{Name: "shared", Version: "1.0.0", Dependencies: []string{"legacy@>=2.0.0"}},
+			},
+			"legacy": {
+				{Name: "legacy", Version: "2.0.0"},
+				{Name: "legacy", Version: "1.0.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0":  "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+			"beta@1.0.0":   "https://www.swi-prolog.org/pack/beta-1.0.0.tar.gz",
+			"zulu@1.0.0":   "https://www.swi-prolog.org/pack/zulu-1.0.0.tar.gz",
+			"shared@2.0.0": "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+			"legacy@2.0.0": "https://www.swi-prolog.org/pack/legacy-2.0.0.tar.gz",
+			"legacy@1.0.0": "https://www.swi-prolog.org/pack/legacy-1.0.0.tar.gz",
+		},
+	}
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"zulu": "*", "beta": "*", "alpha": "*"},
+	}
+
+	lf, err := Resolve(context.Background(), manifest, reg)
+	require.NoError(t, err)
+
+	require.Len(t, lf.Packages, 5)
+	assert.Equal(t, "legacy", lf.Packages[2].Name)
+	assert.Equal(t, "1.0.0", lf.Packages[2].Version)
+	assert.Equal(t, []string{"legacy@1.0.0"}, lf.Packages[1].Dependencies)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[0].Dependencies)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[4].Dependencies)
+}
+
 func TestResolve_CircularDependencyReportsPath(t *testing.T) {
 	reg := &mockRegistry{
 		versions: map[string][]registry.PackageVersion{
