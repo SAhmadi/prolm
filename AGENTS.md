@@ -22,7 +22,6 @@ Read the smallest reference that covers the task:
 | Work on a specific CLI subsystem | [Codebase Knowledge Graph](docs/codebase-knowledge-graph/Codebase%20Knowledge%20Graph.md) |
 | Change `Prolfile.toml`, lockfiles, or metadata | [Project Files](docs/project-files.md) |
 | Change fetch, install, registry, or trust behavior | [Security Rules](docs/security.md) and [Package Manager Design](docs/package-manager-design.md) |
-| Prepare repository for public visibility | [Public Repository Readiness](docs/public-readiness.md) |
 | Check implementation phase and open work | [Roadmap](ROADMAP.md) |
 | Add or change tests | [Testing Guide](TESTING.md) |
 
