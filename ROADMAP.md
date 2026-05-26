@@ -396,7 +396,7 @@ This is the most security-critical sub-phase.
 ### 1.5.4 — Help output and stub-flag consistency
 
 - [x] Remove internal authoring references from all user-facing help and errors
-  - No mentions of `AGENTS.md`, Codex, ChatGPT, or similar in CLI output
+  - No mentions of `AGENTS.md`, agent tools, model vendors, or similar in CLI output
 - [x] Mark stubbed or not-yet-implemented flags consistently in help text
 - [x] Define expected behavior for mixed flag combinations involving stubbed flags
 
