@@ -14,6 +14,7 @@ topic has both a codebase map and a reference spec.
 | Known-issue ID counters and issue index | [BUGS.md](../BUGS.md) |
 | `Prolfile.toml` and `Prolfile.lock` reference | [Project Files](project-files.md) |
 | Package acquisition and trust rules | [Security Rules](security.md) |
+| Public repository readiness and branch protection | [Public Repository Readiness](public-readiness.md) |
 | Dependency, reproducibility, and runtime design context | [Package Manager Design](package-manager-design.md) |
 | Code path and workflow navigation | [Codebase Knowledge Graph](codebase-knowledge-graph/Codebase%20Knowledge%20Graph.md) |
 | Flow visualization entry point | [Flow Diagrams](flow-diagrams.md) and [Command Flow Map](codebase-knowledge-graph/Command%20Flow%20Map.canvas) |

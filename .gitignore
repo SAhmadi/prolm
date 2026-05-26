@@ -27,6 +27,8 @@ go.work.sum
 
 # env file
 .env
+.env.*
+!.env.example
 
 # Editor/IDE
 # .idea/
@@ -34,3 +36,7 @@ go.work.sum
 
 # Obsidian vault settings, workspace layout, and plugin-local state
 .obsidian/
+
+# Local agent memory and tool-specific assistant state
+.claude/
+.codex/
