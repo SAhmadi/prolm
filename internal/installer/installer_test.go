@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/registry"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
@@ -78,6 +79,16 @@ func setupTestInstall(t *testing.T) (storeDir, cacheDir string) {
 	return storeDir, cacheDir
 }
 
+func lockMetaForManifest(t *testing.T, manifest *prolfile.ProlFile) prolfile.LockMeta {
+	t.Helper()
+	hash, err := lockfile.ComputeProlfileHash(manifest)
+	require.NoError(t, err)
+	return prolfile.LockMeta{
+		LockVersion:  prolfile.CurrentLockVersion,
+		ProlfileHash: hash,
+	}
+}
+
 func TestInstall_FreshInstall(t *testing.T) {
 	storeDir, cacheDir := setupTestInstall(t)
 
@@ -140,6 +151,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 		Dependencies: map[string]string{"clpfd": "^1.4"},
 	}
 	lock := &prolfile.LockFile{
+		Meta: lockMetaForManifest(t, manifest),
 		Packages: []prolfile.LockEntry{
 			{
 				Name:     "clpfd",
@@ -160,6 +172,136 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 	assert.NotEmpty(t, lf.Meta.ProlfileHash)
 	assert.Equal(t, "clpfd", lf.Packages[0].Name)
 	assert.Equal(t, "1.4.3", lf.Packages[0].Version)
+}
+
+func TestInstall_StaleLockWithRemovedDependencyReResolves(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	store := NewStore(storeDir)
+	require.NoError(t, store.EnsureDir())
+	require.NoError(t, os.MkdirAll(store.PackPath("alpha", "1.0.0"), 0755))
+	require.NoError(t, os.MkdirAll(store.PackPath("bravo", "1.0.0"), 0755))
+
+	oldManifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{
+			"alpha": "*",
+			"bravo": "*",
+		},
+	}
+	oldHash, err := lockfile.ComputeProlfileHash(oldManifest)
+	require.NoError(t, err)
+
+	lock := &prolfile.LockFile{
+		Meta: prolfile.LockMeta{
+			LockVersion:  prolfile.CurrentLockVersion,
+			ProlfileHash: oldHash,
+		},
+		Packages: []prolfile.LockEntry{
+			{
+				Name:     "alpha",
+				Version:  "1.0.0",
+				Source:   "swi-pack-index",
+				URL:      "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+				Checksum: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			},
+			{
+				Name:     "bravo",
+				Version:  "1.0.0",
+				Source:   "swi-pack-index",
+				URL:      "https://www.swi-prolog.org/pack/bravo-1.0.0.tar.gz",
+				Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			},
+		},
+	}
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha": {{Name: "alpha", Version: "1.0.0"}},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0": "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"alpha": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, lock, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 1)
+	assert.Equal(t, "alpha", lf.Packages[0].Name)
+}
+
+func TestInstall_StaleLockAlreadyInstalledUsesFreshDependencyEdges(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	store := NewStore(storeDir)
+	require.NoError(t, store.EnsureDir())
+	require.NoError(t, os.MkdirAll(store.PackPath("alpha", "1.0.0"), 0755))
+	require.NoError(t, os.MkdirAll(store.PackPath("shared", "2.0.0"), 0755))
+
+	oldManifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"alpha": "^1.0"},
+	}
+	oldHash, err := lockfile.ComputeProlfileHash(oldManifest)
+	require.NoError(t, err)
+
+	lock := &prolfile.LockFile{
+		Meta: prolfile.LockMeta{
+			LockVersion:  prolfile.CurrentLockVersion,
+			ProlfileHash: oldHash,
+		},
+		Packages: []prolfile.LockEntry{
+			{
+				Name:         "alpha",
+				Version:      "1.0.0",
+				Source:       "swi-pack-index",
+				URL:          "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+				Checksum:     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Dependencies: []string{"shared@1.0.0"},
+			},
+			{
+				Name:     "shared",
+				Version:  "2.0.0",
+				Source:   "swi-pack-index",
+				URL:      "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+				Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			},
+		},
+	}
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha": {
+				{Name: "alpha", Version: "1.0.0", Dependencies: []string{"shared@>=2.0.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0":  "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+			"shared@2.0.0": "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"alpha": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, lock, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 2)
+	assert.Equal(t, "alpha", lf.Packages[0].Name)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[0].Dependencies)
+	assert.Equal(t, "shared", lf.Packages[1].Name)
 }
 
 func TestInstall_RegistryError(t *testing.T) {
@@ -195,6 +337,7 @@ func TestInstall_InvalidLockURL(t *testing.T) {
 		Dependencies: map[string]string{"clpfd": "^1.4"},
 	}
 	lock := &prolfile.LockFile{
+		Meta: lockMetaForManifest(t, manifest),
 		Packages: []prolfile.LockEntry{
 			{
 				Name:    "clpfd",
@@ -260,6 +403,59 @@ func TestInstall_MultiplePackages(t *testing.T) {
 	assert.Equal(t, "pack-a", lf.Packages[0].Name)
 	assert.Equal(t, "pack-b", lf.Packages[1].Name)
 	assert.Equal(t, "pack-c", lf.Packages[2].Name)
+}
+
+func TestInstall_InstallsTransitiveDependenciesFromResolver(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	tarballRoot := makeTarball(t, map[string]string{"root/main.pl": "root."})
+	tarballShared := makeTarball(t, map[string]string{"shared/main.pl": "shared."})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "root"):
+			w.Write(tarballRoot)
+		case strings.Contains(r.URL.Path, "shared"):
+			w.Write(tarballShared)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"root": {
+				{Name: "root", Version: "1.0.0", Dependencies: []string{"shared@>=1.2.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+				{Name: "shared", Version: "1.2.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"root@1.0.0":   srv.URL + "/root-1.0.0.tar.gz",
+			"shared@1.2.0": srv.URL + "/shared-1.2.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"root": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, nil, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 2)
+	assert.Equal(t, "root", lf.Packages[0].Name)
+	assert.Equal(t, "shared", lf.Packages[1].Name)
+	assert.Equal(t, []string{"shared@1.2.0"}, lf.Packages[0].Dependencies)
+
+	store := NewStore(storeDir)
+	assert.True(t, store.IsInstalled("root", "1.0.0"))
+	assert.True(t, store.IsInstalled("shared", "1.2.0"))
 }
 
 func TestInstall_ContextCancellation(t *testing.T) {

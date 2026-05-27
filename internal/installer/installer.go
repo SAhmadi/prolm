@@ -12,6 +12,7 @@ import (
 	"github.com/prolm/prolm/internal/httputil"
 	"github.com/prolm/prolm/internal/lockfile"
 	"github.com/prolm/prolm/internal/registry"
+	"github.com/prolm/prolm/internal/resolver"
 	"github.com/prolm/prolm/internal/ui"
 	"github.com/prolm/prolm/pkg/prolfile"
 )
@@ -56,19 +57,29 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 	}
 	defer unlock()
 
-	deps := allDeps(manifest)
-
-	// Deterministic install order: sort dependency names alphabetically.
-	names := make([]string, 0, len(deps))
-	for n := range deps {
-		names = append(names, n)
+	var resolved *prolfile.LockFile
+	if lockCoversInstalledManifest(lock, manifest, store) {
+		resolved = cloneLock(lock)
+		for i := range resolved.Packages {
+			if err := validateLockURL(resolved.Packages[i].URL); err != nil {
+				return nil, err
+			}
+			ui.Success("already installed: %s@%s", resolved.Packages[i].Name, resolved.Packages[i].Version)
+		}
+	} else {
+		resolved, err = resolver.Resolve(ctx, manifest, reg)
+		if err != nil {
+			return nil, fmt.Errorf("resolving dependencies: %w", err)
+		}
 	}
-	sort.Strings(names)
 
 	newLock := &prolfile.LockFile{
 		Meta: prolfile.LockMeta{
-			LockVersion: prolfile.CurrentLockVersion,
+			LockVersion: resolved.Meta.LockVersion,
 		},
+	}
+	if newLock.Meta.LockVersion == 0 {
+		newLock.Meta.LockVersion = prolfile.CurrentLockVersion
 	}
 	prolfileHash, err := lockfile.ComputeProlfileHash(manifest)
 	if err != nil {
@@ -76,11 +87,10 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 	}
 	newLock.Meta.ProlfileHash = prolfileHash
 
-	for _, name := range names {
-		constraint := deps[name]
-		entry, err := installOne(ctx, name, constraint, lock, store, reg, cacheDir)
+	for i := range resolved.Packages {
+		entry, err := installResolved(ctx, resolved.Packages[i], lock, store, reg, cacheDir)
 		if err != nil {
-			return nil, fmt.Errorf("installing %s: %w", name, err)
+			return nil, fmt.Errorf("installing %s: %w", resolved.Packages[i].Name, err)
 		}
 		newLock.Packages = append(newLock.Packages, *entry)
 	}
@@ -93,50 +103,25 @@ func Install(ctx context.Context, manifest *prolfile.ProlFile, lock *prolfile.Lo
 	return newLock, nil
 }
 
-// installOne handles the install flow for a single dependency.
-func installOne(ctx context.Context, name, constraint string, lock *prolfile.LockFile, store *Store, reg registry.Registry, cacheDir string) (*prolfile.LockEntry, error) {
+// installResolved handles the install flow for one resolved lock entry.
+func installResolved(ctx context.Context, resolved prolfile.LockEntry, lock *prolfile.LockFile, store *Store, reg registry.Registry, cacheDir string) (*prolfile.LockEntry, error) {
+	name := resolved.Name
+	version := resolved.Version
+
 	// Fast path: already in lock and installed in store — skip all cache I/O.
 	// The pack is already unpacked; tarball cache integrity is irrelevant here.
 	if existing := findLockEntry(lock, name); existing != nil {
-		if store.IsInstalled(name, existing.Version) {
+		if existing.Version == version && store.IsInstalled(name, existing.Version) {
 			// SEC-14: validate URL origin.
 			if err := validateLockURL(existing.URL); err != nil {
 				return nil, err
 			}
 			ui.Success("already installed: %s@%s", name, existing.Version)
-			return existing, nil
+			return installedLockEntry(existing, resolved), nil
 		}
 	}
 
-	// Query registry for available versions.
-	versions, err := reg.Versions(ctx, name)
-	if err != nil {
-		return nil, fmt.Errorf("querying versions: %w", err)
-	}
-	if len(versions) == 0 {
-		return nil, &registry.ErrPackageNotFound{Name: name, Registry: "swi-pack-index"}
-	}
-
-	// Phase 1: pick the first (latest) non-yanked version.
-	// Phase 2 will add semver constraint resolution.
-	var chosen *registry.PackageVersion
-	for i := range versions {
-		if !versions[i].Yanked {
-			chosen = &versions[i]
-			break
-		}
-	}
-	if chosen == nil {
-		return nil, fmt.Errorf("all versions of %s are yanked", name)
-	}
-
-	_ = constraint // Phase 1: constraint not used in resolution yet
-
-	// Get download URL.
-	downloadURL, err := reg.DownloadURL(ctx, name, chosen.Version)
-	if err != nil {
-		return nil, fmt.Errorf("getting download URL: %w", err)
-	}
+	downloadURL := resolved.URL
 
 	// SEC-14: validate download URL.
 	if err := validateLockURL(downloadURL); err != nil {
@@ -144,8 +129,8 @@ func installOne(ctx context.Context, name, constraint string, lock *prolfile.Loc
 	}
 
 	// Fetch tarball to cache.
-	tarball := cachePath(cacheDir, name, chosen.Version)
-	ui.Info("fetching %s@%s", name, chosen.Version)
+	tarball := cachePath(cacheDir, name, version)
+	ui.Info("fetching %s@%s", name, version)
 	if err := Fetch(ctx, downloadURL, tarball); err != nil {
 		return nil, fmt.Errorf("downloading: %w", err)
 	}
@@ -154,11 +139,12 @@ func installOne(ctx context.Context, name, constraint string, lock *prolfile.Loc
 	// downloaded bytes against THAT before trusting any locally computed
 	// hash. This closes the TOCTOU window on fresh installs where the
 	// lockfile does not yet pin a sha256.
-	if err := VerifyRegistryChecksum(tarball, chosen.Checksum); err != nil {
+	registryChecksum, checksumWarning := registryIntegrityMetadata(ctx, reg, name, version, resolved.Checksum)
+	if err := VerifyRegistryChecksum(tarball, registryChecksum); err != nil {
 		return nil, fmt.Errorf("verifying registry checksum: %w", err)
 	}
-	if chosen.Checksum == "" && chosen.ChecksumWarning != "" {
-		ui.Warn("%s", chosen.ChecksumWarning)
+	if registryChecksum == "" && checksumWarning != "" {
+		ui.Warn("%s", checksumWarning)
 	}
 
 	// SEC-1: compute sha256 for the lockfile.
@@ -175,27 +161,52 @@ func installOne(ctx context.Context, name, constraint string, lock *prolfile.Loc
 	}
 
 	// Unpack to store.
-	destDir := store.PackPath(name, chosen.Version)
+	destDir := store.PackPath(name, version)
 	if err := Unpack(tarball, destDir); err != nil {
 		return nil, fmt.Errorf("unpacking: %w", err)
 	}
 
-	ui.Success("installed %s@%s", name, chosen.Version)
+	ui.Success("installed %s@%s", name, version)
 
 	// Build lock entry.
-	deps := chosen.Dependencies
+	deps := resolved.Dependencies
 	if deps == nil {
 		deps = []string{}
 	}
 	entry := &prolfile.LockEntry{
 		Name:         name,
-		Version:      chosen.Version,
-		Source:       "swi-pack-index",
+		Version:      version,
+		Source:       resolved.Source,
 		URL:          downloadURL,
 		Checksum:     checksum,
 		Dependencies: deps,
 	}
 	return entry, nil
+}
+
+func installedLockEntry(existing *prolfile.LockEntry, resolved prolfile.LockEntry) *prolfile.LockEntry {
+	entry := *existing
+	entry.Dependencies = resolved.Dependencies
+	if entry.Dependencies == nil {
+		entry.Dependencies = []string{}
+	}
+	if entry.Source == "" {
+		entry.Source = resolved.Source
+	}
+	return &entry
+}
+
+func registryIntegrityMetadata(ctx context.Context, reg registry.Registry, name, version, fallbackChecksum string) (string, string) {
+	versions, err := reg.Versions(ctx, name)
+	if err != nil {
+		return fallbackChecksum, ""
+	}
+	for _, pv := range versions {
+		if strings.TrimPrefix(pv.Version, "v") == version {
+			return pv.Checksum, pv.ChecksumWarning
+		}
+	}
+	return fallbackChecksum, ""
 }
 
 // allDeps merges manifest.Dependencies and manifest.DevDependencies.
@@ -208,6 +219,41 @@ func allDeps(manifest *prolfile.ProlFile) map[string]string {
 		merged[k] = v
 	}
 	return merged
+}
+
+func lockCoversInstalledManifest(lock *prolfile.LockFile, manifest *prolfile.ProlFile, store *Store) bool {
+	if lock == nil || len(lock.Packages) == 0 {
+		return false
+	}
+	prolfileHash, err := lockfile.ComputeProlfileHash(manifest)
+	if err != nil || lock.Meta.ProlfileHash != prolfileHash {
+		return false
+	}
+	for name := range allDeps(manifest) {
+		if findLockEntry(lock, name) == nil {
+			return false
+		}
+	}
+	for i := range lock.Packages {
+		if !store.IsInstalled(lock.Packages[i].Name, lock.Packages[i].Version) {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneLock(lock *prolfile.LockFile) *prolfile.LockFile {
+	if lock == nil {
+		return nil
+	}
+	clone := &prolfile.LockFile{
+		Meta:     lock.Meta,
+		Packages: append([]prolfile.LockEntry(nil), lock.Packages...),
+	}
+	sort.Slice(clone.Packages, func(i, j int) bool {
+		return clone.Packages[i].Name < clone.Packages[j].Name
+	})
+	return clone
 }
 
 // findLockEntry searches lock for a matching package name.
