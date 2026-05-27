@@ -29,6 +29,33 @@ Before searching for a component by hand, consult the component overview. Use
 `rg` after that map is insufficient, may be stale, or symbol-level source
 verification is needed.
 
+## Agentic Tool Calls And Search
+
+Agents should keep external tool use explicit, minimal, and reproducible:
+
+- Prefer repository-local documentation before broad search. Start with
+  [Documentation Index](docs/index.md), then the smallest focused reference for
+  the task.
+- Use the [Project Component Overview](docs/codebase-knowledge-graph/Project%20Component%20Overview.md)
+  before searching paths by hand. It is the fastest route to the right package.
+- Read [Project Files](docs/project-files.md) before editing `Prolfile.toml`,
+  `Prolfile.lock`, scaffolding templates, or metadata serialization.
+- Use `rg` and `rg --files` for codebase search. Search symbols and exact
+  output strings before doing broad text sweeps.
+- Verify source-level behavior in code even when a doc points to the right
+  subsystem. Docs guide navigation; code and tests are authoritative.
+- Keep GitHub work on normal review paths: create a branch from `main`, keep
+  commits scoped, open a pull request, and let CI pass before merge.
+- Use `gh` for GitHub issue, PR, and workflow operations when it is
+  authenticated. If `gh auth status` reports an invalid token, re-authenticate
+  locally; do not paste tokens into chat, logs, docs, or project files.
+- When an app connector or hosted tool is used instead of `gh`, treat it as a
+  convenience layer over the same repository state. Cross-check destructive or
+  permission-changing operations before applying them.
+- Never commit local agent memory, prompt caches, credentials, or vendor-specific
+  assistant state. Public project docs should say "agent" unless a specific
+  integration is being documented.
+
 ## Product Shape
 
 Core goals:
@@ -100,7 +127,7 @@ Use the repository's existing stack unless a task explicitly changes it:
 
 ## Engineering Rules
 
-- Go version target is 1.22+.
+- Go version target follows `go.mod` and is currently 1.25+.
 - Bind Viper to Cobra flags in `PersistentPreRunE`, not in command `init()`.
   Root setup must bind both local and persistent flags before command logic
   reads Viper values.
