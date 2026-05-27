@@ -221,6 +221,28 @@ func TestResolve_NormalizesVPrefixInLock(t *testing.T) {
 	assert.Equal(t, "1.2.3", lf.Packages[0].Version)
 }
 
+func TestResolve_UsesRegistryRowURLForShortVersion(t *testing.T) {
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"pkg": {{
+				Name:    "pkg",
+				Version: "1.2",
+				URL:     "https://www.swi-prolog.org/pack/pkg-1.2.tar.gz",
+			}},
+		},
+		downloadURL: map[string]string{
+			"pkg@1.2": "https://www.swi-prolog.org/pack/pkg-1.2.tar.gz",
+		},
+	}
+	manifest := &prolfile.ProlFile{Dependencies: map[string]string{"pkg": "*"}}
+
+	lf, err := Resolve(context.Background(), manifest, reg)
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 1)
+	assert.Equal(t, "1.2.0", lf.Packages[0].Version)
+	assert.Equal(t, "https://www.swi-prolog.org/pack/pkg-1.2.tar.gz", lf.Packages[0].URL)
+}
+
 func TestResolve_RejectsRegistryPackageNameMismatch(t *testing.T) {
 	reg := &mockRegistry{
 		versions: map[string][]registry.PackageVersion{

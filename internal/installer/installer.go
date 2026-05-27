@@ -117,7 +117,7 @@ func installResolved(ctx context.Context, resolved prolfile.LockEntry, lock *pro
 				return nil, err
 			}
 			ui.Success("already installed: %s@%s", name, existing.Version)
-			return existing, nil
+			return installedLockEntry(existing, resolved), nil
 		}
 	}
 
@@ -182,6 +182,18 @@ func installResolved(ctx context.Context, resolved prolfile.LockEntry, lock *pro
 		Dependencies: deps,
 	}
 	return entry, nil
+}
+
+func installedLockEntry(existing *prolfile.LockEntry, resolved prolfile.LockEntry) *prolfile.LockEntry {
+	entry := *existing
+	entry.Dependencies = resolved.Dependencies
+	if entry.Dependencies == nil {
+		entry.Dependencies = []string{}
+	}
+	if entry.Source == "" {
+		entry.Source = resolved.Source
+	}
+	return &entry
 }
 
 func registryIntegrityMetadata(ctx context.Context, reg registry.Registry, name, version, fallbackChecksum string) (string, string) {

@@ -210,4 +210,3 @@ Related notes: [[CLI Surface]] and [[Scaffolding And UX]].
 | [`docs/project-files.md`](../project-files.md) | Prolfile and lockfile format reference. |
 | [`docs/security.md`](../security.md) | Package acquisition and trust rules. |
 | [`docs/package-manager-design.md`](../package-manager-design.md) | Dependency, reproducibility, and runtime design notes. |
-| [`BUGS.md`](../../BUGS.md) | Known bug and follow-up tracking. |

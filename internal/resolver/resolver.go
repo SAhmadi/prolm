@@ -63,15 +63,19 @@ func Resolve(ctx context.Context, manifest *prolfile.ProlFile, reg registry.Regi
 	sort.Strings(names)
 	for _, name := range names {
 		pv := r.selected[name]
-		url, err := reg.DownloadURL(ctx, name, pv.Version)
-		if err != nil {
-			return nil, fmt.Errorf("getting download URL for %s@%s: %w", name, pv.Version, err)
+		downloadURL := pv.URL
+		if downloadURL == "" {
+			var err error
+			downloadURL, err = reg.DownloadURL(ctx, name, pv.Version)
+			if err != nil {
+				return nil, fmt.Errorf("getting download URL for %s@%s: %w", name, pv.Version, err)
+			}
 		}
 		lf.Packages = append(lf.Packages, prolfile.LockEntry{
 			Name:         name,
 			Version:      pv.Version,
 			Source:       "swi-pack-index",
-			URL:          url,
+			URL:          downloadURL,
 			Checksum:     pv.Checksum,
 			Dependencies: r.lockDependencyEdges(name),
 		})

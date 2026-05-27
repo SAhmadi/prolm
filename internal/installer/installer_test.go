@@ -236,6 +236,74 @@ func TestInstall_StaleLockWithRemovedDependencyReResolves(t *testing.T) {
 	assert.Equal(t, "alpha", lf.Packages[0].Name)
 }
 
+func TestInstall_StaleLockAlreadyInstalledUsesFreshDependencyEdges(t *testing.T) {
+	storeDir, cacheDir := setupTestInstall(t)
+
+	store := NewStore(storeDir)
+	require.NoError(t, store.EnsureDir())
+	require.NoError(t, os.MkdirAll(store.PackPath("alpha", "1.0.0"), 0755))
+	require.NoError(t, os.MkdirAll(store.PackPath("shared", "2.0.0"), 0755))
+
+	oldManifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"alpha": "^1.0"},
+	}
+	oldHash, err := lockfile.ComputeProlfileHash(oldManifest)
+	require.NoError(t, err)
+
+	lock := &prolfile.LockFile{
+		Meta: prolfile.LockMeta{
+			LockVersion:  prolfile.CurrentLockVersion,
+			ProlfileHash: oldHash,
+		},
+		Packages: []prolfile.LockEntry{
+			{
+				Name:         "alpha",
+				Version:      "1.0.0",
+				Source:       "swi-pack-index",
+				URL:          "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+				Checksum:     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Dependencies: []string{"shared@1.0.0"},
+			},
+			{
+				Name:     "shared",
+				Version:  "2.0.0",
+				Source:   "swi-pack-index",
+				URL:      "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+				Checksum: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			},
+		},
+	}
+
+	reg := &mockRegistry{
+		versions: map[string][]registry.PackageVersion{
+			"alpha": {
+				{Name: "alpha", Version: "1.0.0", Dependencies: []string{"shared@>=2.0.0"}},
+			},
+			"shared": {
+				{Name: "shared", Version: "2.0.0"},
+			},
+		},
+		downloadURL: map[string]string{
+			"alpha@1.0.0":  "https://www.swi-prolog.org/pack/alpha-1.0.0.tar.gz",
+			"shared@2.0.0": "https://www.swi-prolog.org/pack/shared-2.0.0.tar.gz",
+		},
+	}
+
+	manifest := &prolfile.ProlFile{
+		Dependencies: map[string]string{"alpha": "*"},
+	}
+
+	lf, err := Install(context.Background(), manifest, lock, reg, Options{
+		StoreDir: storeDir,
+		CacheDir: cacheDir,
+	})
+	require.NoError(t, err)
+	require.Len(t, lf.Packages, 2)
+	assert.Equal(t, "alpha", lf.Packages[0].Name)
+	assert.Equal(t, []string{"shared@2.0.0"}, lf.Packages[0].Dependencies)
+	assert.Equal(t, "shared", lf.Packages[1].Name)
+}
+
 func TestInstall_RegistryError(t *testing.T) {
 	storeDir, cacheDir := setupTestInstall(t)
 
