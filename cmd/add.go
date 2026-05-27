@@ -203,19 +203,19 @@ func parseAddTarget(raw string) (addTarget, error) {
 func inferStableVersion(rawURL string) string {
 	if u, err := url.Parse(rawURL); err == nil {
 		if qp := strings.TrimSpace(u.Query().Get("path")); qp != "" {
-			if v := versionFromBase(stripArchiveExt(path.Base(qp))); v != "" {
+			if v := versionFromBase(trimKnownArchiveSuffixes(path.Base(qp))); v != "" {
 				return v
 			}
 		}
-		if v := versionFromBase(stripArchiveExt(path.Base(u.Path))); v != "" {
+		if v := versionFromBase(trimKnownArchiveSuffixes(path.Base(u.Path))); v != "" {
 			return v
 		}
 	}
-	base := stripArchiveExt(path.Base(rawURL))
+	base := trimKnownArchiveSuffixes(path.Base(rawURL))
 	return versionFromBase(base)
 }
 
-func stripArchiveExt(s string) string {
+func trimKnownArchiveSuffixes(s string) string {
 	name := strings.TrimSpace(s)
 	for _, suffix := range []string{".tar.gz", ".tgz", ".zip"} {
 		name = strings.TrimSuffix(name, suffix)
@@ -260,21 +260,13 @@ func installedVersionFor(manifestPath, name string) (string, error) {
 
 func deriveNameFromPathOrQuery(u *url.URL) string {
 	if p := strings.TrimSpace(u.Query().Get("path")); p != "" {
-		return trimArchiveSuffixes(p)
+		return trimPackageVersionSuffix(trimKnownArchiveSuffixes(p))
 	}
 	base := path.Base(strings.Trim(u.Path, "/"))
-	return trimArchiveSuffixes(base)
+	return trimPackageVersionSuffix(trimKnownArchiveSuffixes(base))
 }
 
-func trimArchiveSuffixes(s string) string {
-	name := strings.TrimSpace(s)
-	for _, suffix := range []string{".tar.gz", ".tgz", ".zip"} {
-		name = strings.TrimSuffix(name, suffix)
-	}
-	for _, suffix := range []string{".tar", ".gz"} {
-		name = strings.TrimSuffix(name, suffix)
-	}
-	name = strings.TrimSuffix(name, ".git")
+func trimPackageVersionSuffix(name string) string {
 	// Heuristic for pack filenames like "clpfd-1.2.3".
 	if i := strings.LastIndex(name, "-"); i > 0 && i+1 < len(name) {
 		tail := name[i+1:]
