@@ -249,41 +249,21 @@ func InitProject(dir string, scan, yes bool, stdin io.Reader) error {
 		// Interactive: prompt for each value.
 		p := newPrompter(stdin)
 
-		name = p.ask("Project name", defaultName)
-		if err := manifest.ValidateName(name); err != nil {
-			ui.Error("invalid project name %q: %s", name, err)
-			// Re-prompt once.
-			name = p.ask("Project name", defaultName)
-			if err := manifest.ValidateName(name); err != nil {
-				return fmt.Errorf("invalid project name %q: %w", name, err)
-			}
+		name, err = askValidated(p, "Project name", defaultName, "project name", manifest.ValidateName)
+		if err != nil {
+			return err
 		}
-
-		version = p.ask("Version", defaultVersion)
-		if err := manifest.ValidateVersion(version); err != nil {
-			ui.Error("invalid version %q: %s", version, err)
-			version = p.ask("Version", defaultVersion)
-			if err := manifest.ValidateVersion(version); err != nil {
-				return fmt.Errorf("invalid version %q: %w", version, err)
-			}
+		version, err = askValidated(p, "Version", defaultVersion, "version", manifest.ValidateVersion)
+		if err != nil {
+			return err
 		}
-
-		entry = p.ask("Entry point", defaultEntry)
-		if err := manifest.ValidateEntry(entry); err != nil {
-			ui.Error("invalid entry %q: %s", entry, err)
-			entry = p.ask("Entry point", defaultEntry)
-			if err := manifest.ValidateEntry(entry); err != nil {
-				return fmt.Errorf("invalid entry %q: %w", entry, err)
-			}
+		entry, err = askValidated(p, "Entry point", defaultEntry, "entry", manifest.ValidateEntry)
+		if err != nil {
+			return err
 		}
-
-		runtime = p.ask("Runtime (swi, gnu, scryer)", defaultRuntime)
-		if err := manifest.ValidateRuntime(runtime); err != nil {
-			ui.Error("invalid runtime %q: %s", runtime, err)
-			runtime = p.ask("Runtime (swi, gnu, scryer)", defaultRuntime)
-			if err := manifest.ValidateRuntime(runtime); err != nil {
-				return fmt.Errorf("invalid runtime %q: %w", runtime, err)
-			}
+		runtime, err = askValidated(p, "Runtime (swi, gnu, scryer)", defaultRuntime, "runtime", manifest.ValidateRuntime)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -328,4 +308,16 @@ func InitProject(dir string, scan, yes bool, stdin io.Reader) error {
 	}
 	ui.Hint("Run `prolm install` to install dependencies")
 	return nil
+}
+
+func askValidated(p *prompter, label, defaultValue, field string, validate func(string) error) (string, error) {
+	value := p.ask(label, defaultValue)
+	if err := validate(value); err != nil {
+		ui.Error("invalid %s %q: %s", field, value, err)
+		value = p.ask(label, defaultValue)
+		if err := validate(value); err != nil {
+			return "", fmt.Errorf("invalid %s %q: %w", field, value, err)
+		}
+	}
+	return value, nil
 }
