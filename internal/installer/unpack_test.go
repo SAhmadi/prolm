@@ -98,6 +98,20 @@ func writeZip(t *testing.T, dir string, entries []tarEntry) string {
 	return path
 }
 
+func requirePathTraversal(t *testing.T, err error) *ErrPathTraversal {
+	t.Helper()
+	var traversal *ErrPathTraversal
+	require.ErrorAs(t, err, &traversal)
+	return traversal
+}
+
+func requireExtractionLimit(t *testing.T, err error) *ErrExtractionLimit {
+	t.Helper()
+	var limit *ErrExtractionLimit
+	require.ErrorAs(t, err, &limit)
+	return limit
+}
+
 func TestUnpack_ValidTarball(t *testing.T) {
 	dir := t.TempDir()
 	tarball := writeTarGz(t, dir, []tarEntry{
@@ -149,8 +163,7 @@ func TestUnpack_PathTraversal_DotDot(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 
 	// destDir should be cleaned up.
 	_, statErr := os.Stat(destDir)
@@ -165,8 +178,7 @@ func TestUnpack_PathTraversal_Absolute(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_PathTraversal_DotDotNested(t *testing.T) {
@@ -177,8 +189,7 @@ func TestUnpack_PathTraversal_DotDotNested(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_SymlinkEscape(t *testing.T) {
@@ -189,8 +200,7 @@ func TestUnpack_SymlinkEscape(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_SymlinkRelativeEscape(t *testing.T) {
@@ -201,8 +211,7 @@ func TestUnpack_SymlinkRelativeEscape(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_SymlinkWithinDestDir(t *testing.T) {
@@ -285,8 +294,7 @@ func TestUnpack_HardlinkEscape(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_DeviceFile(t *testing.T) {
@@ -297,8 +305,7 @@ func TestUnpack_DeviceFile(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_CharDevice(t *testing.T) {
@@ -309,8 +316,7 @@ func TestUnpack_CharDevice(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_NamedPipe(t *testing.T) {
@@ -321,8 +327,7 @@ func TestUnpack_NamedPipe(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var traversal *ErrPathTraversal
-	require.ErrorAs(t, err, &traversal)
+	requirePathTraversal(t, err)
 }
 
 func TestUnpack_IgnoresPAXGlobalHeader(t *testing.T) {
@@ -371,8 +376,7 @@ func TestUnpack_ExcessiveFileCount(t *testing.T) {
 	tarball := writeTarGz(t, dir, entries)
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var limit *ErrExtractionLimit
-	require.ErrorAs(t, err, &limit)
+	limit := requireExtractionLimit(t, err)
 	assert.Contains(t, limit.Reason, "file count")
 }
 
@@ -387,8 +391,7 @@ func TestUnpack_SingleFileTooLarge(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var limit *ErrExtractionLimit
-	require.ErrorAs(t, err, &limit)
+	requireExtractionLimit(t, err)
 }
 
 func TestUnpack_TarBomb_TotalSize(t *testing.T) {
@@ -409,8 +412,7 @@ func TestUnpack_TarBomb_TotalSize(t *testing.T) {
 	tarball := writeTarGz(t, dir, entries)
 	destDir := filepath.Join(dir, "out")
 	err := Unpack(tarball, destDir)
-	var limit *ErrExtractionLimit
-	require.ErrorAs(t, err, &limit)
+	limit := requireExtractionLimit(t, err)
 	assert.Contains(t, limit.Reason, "total extracted size")
 }
 
@@ -427,8 +429,7 @@ func TestUnpack_RejectsOversizedArchiveBeforeFormatDispatch(t *testing.T) {
 
 	destDir := filepath.Join(dir, "out")
 	err = Unpack(archivePath, destDir)
-	var limit *ErrExtractionLimit
-	require.ErrorAs(t, err, &limit)
+	limit := requireExtractionLimit(t, err)
 	assert.Contains(t, limit.Reason, "tarball size")
 
 	_, statErr := os.Stat(destDir)

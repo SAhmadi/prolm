@@ -283,7 +283,7 @@ Flag status:
 - `--verbose`: `Available`
 - `--timeout`: `Available`
 - `--watch`: `Phase 2`
-- `--coverage`: `Not implemented`
+- `--coverage`: `Phase 3`
 
 Test discovery walks project files matching `**/*_test.pl` and
 `**/test_*.pl`. The command exits non-zero on test failure.
