@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -64,6 +65,33 @@ func TestExecute_HelpOutput_HasNoInternalAuthoringRefs(t *testing.T) {
 			assert.NotContains(t, out, "chatgpt")
 		})
 	}
+}
+
+func TestCommandCentralAvailableCommandsAreRegistered(t *testing.T) {
+	data, err := os.ReadFile("../docs/command-central.md")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile("(?m)^### `prolm(?: ([^`]+))?`\\n\\n\\*\\*Status:\\*\\* `Available`")
+	matches := re.FindAllStringSubmatch(string(data), -1)
+	require.NotEmpty(t, matches)
+
+	var documented []string
+	for _, match := range matches {
+		if match[1] == "" {
+			continue
+		}
+		documented = append(documented, strings.Fields(match[1])[0])
+	}
+
+	var registered []string
+	for _, command := range rootCmd.Commands() {
+		if command.Hidden {
+			continue
+		}
+		registered = append(registered, command.Name())
+	}
+
+	assert.ElementsMatch(t, documented, registered)
 }
 
 func TestParseAddTarget(t *testing.T) {
