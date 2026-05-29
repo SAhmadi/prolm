@@ -11,27 +11,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type commandResult struct {
+	stdout string
+	stderr string
+	err    error
+}
+
+func executeVersionTestCommand(args ...string) commandResult {
+	cmd := newRootCmd()
+	cmd.AddCommand(newVersionCmd())
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs(args)
+
+	executedCmd, err := cmd.ExecuteC()
+	if err != nil {
+		printCommandError(cmd, executedCmd, err)
+	}
+
+	return commandResult{
+		stdout: stdout.String(),
+		stderr: stderr.String(),
+		err:    err,
+	}
+}
+
 func TestExecute_Version(t *testing.T) {
-	// NOTE: This test mutates the package-level rootCmd (SetArgs, SetOut, SetErr)
-	// and must NOT be run in parallel with other tests in this package.
-	// TODO: Refactor to construct a fresh cobra.Command per test to enable parallelism.
+	result := executeVersionTestCommand("version")
+	require.NoError(t, result.err)
 
-	// Capture stdout by swapping the command's output writer.
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-	}()
-
-	rootCmd.SetArgs([]string{"version"})
-	err := Execute()
-	require.NoError(t, err)
-
-	out := buf.String()
-	assert.True(t, strings.HasPrefix(out, "prolm "), "expected output to start with 'prolm ', got: %q", out)
-	assert.Contains(t, out, Version)
+	assert.True(t, strings.HasPrefix(result.stdout, "prolm "), "expected output to start with 'prolm ', got: %q", result.stdout)
+	assert.Contains(t, result.stdout, Version)
+	assert.Empty(t, result.stderr)
 }
 
 func TestExecute_Version_UsesInjectedVersionVariable(t *testing.T) {
@@ -39,87 +53,44 @@ func TestExecute_Version_UsesInjectedVersionVariable(t *testing.T) {
 	Version = "1.2.3"
 	t.Cleanup(func() { Version = originalVersion })
 
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	}()
+	result := executeVersionTestCommand("version")
+	require.NoError(t, result.err)
 
-	rootCmd.SetArgs([]string{"version"})
-	err := Execute()
-	require.NoError(t, err)
-
-	assert.Equal(t, "prolm 1.2.3\n", buf.String())
+	assert.Equal(t, "prolm 1.2.3\n", result.stdout)
+	assert.Empty(t, result.stderr)
 }
 
 func TestExecute_Help(t *testing.T) {
-	// NOTE: This test mutates the package-level rootCmd (SetArgs, SetOut, SetErr)
-	// and must NOT be run in parallel with other tests in this package.
-	// TODO: Refactor to construct a fresh cobra.Command per test to enable parallelism.
-
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	}()
-
-	rootCmd.SetArgs([]string{"--help"})
 	// --help causes cobra to print and return nil.
-	err := Execute()
-	require.NoError(t, err)
+	result := executeVersionTestCommand("--help")
+	require.NoError(t, result.err)
 
-	out := buf.String()
-	assert.Contains(t, out, "prolm")
-	assert.Contains(t, out, "--verbose")
-	assert.Contains(t, out, "--no-color")
-	assert.Contains(t, out, "--json")
+	assert.Contains(t, result.stdout, "prolm")
+	assert.Contains(t, result.stdout, "--verbose")
+	assert.Contains(t, result.stdout, "--no-color")
+	assert.Contains(t, result.stdout, "--json")
+	assert.Empty(t, result.stderr)
 }
 
 func TestExecute_HelpWithGlobalFlag(t *testing.T) {
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	}()
+	result := executeVersionTestCommand("--no-color", "--help")
+	require.NoError(t, result.err)
 
-	rootCmd.SetArgs([]string{"--no-color", "--help"})
-	err := Execute()
-	require.NoError(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, "Usage:")
-	assert.Contains(t, out, "--no-color")
-	assert.Contains(t, out, "Available Commands:")
+	assert.Contains(t, result.stdout, "Usage:")
+	assert.Contains(t, result.stdout, "--no-color")
+	assert.Contains(t, result.stdout, "Available Commands:")
+	assert.Empty(t, result.stderr)
 }
 
 func TestExecute_CompletionHelp(t *testing.T) {
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	}()
+	result := executeVersionTestCommand("completion", "--help")
+	require.NoError(t, result.err)
 
-	rootCmd.SetArgs([]string{"completion", "--help"})
-	err := Execute()
-	require.NoError(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, "Generate the autocompletion script")
-	assert.Contains(t, out, "bash")
-	assert.Contains(t, out, "zsh")
-	assert.Contains(t, out, "fish")
+	assert.Contains(t, result.stdout, "Generate the autocompletion script")
+	assert.Contains(t, result.stdout, "bash")
+	assert.Contains(t, result.stdout, "zsh")
+	assert.Contains(t, result.stdout, "fish")
+	assert.Empty(t, result.stderr)
 }
 
 func TestExecute_CompletionScripts_BashAndZsh(t *testing.T) {
@@ -145,23 +116,13 @@ func TestExecute_CompletionScripts_BashAndZsh(t *testing.T) {
 }
 
 func TestExecute_UnknownCommand_ShowsRootUsage(t *testing.T) {
-	buf := &bytes.Buffer{}
-	rootCmd.SetOut(buf)
-	rootCmd.SetErr(buf)
-	defer func() {
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
-		rootCmd.SetArgs(nil)
-	}()
+	result := executeVersionTestCommand("frob")
+	require.Error(t, result.err)
 
-	rootCmd.SetArgs([]string{"frob"})
-	err := Execute()
-	require.Error(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, `unknown command "frob" for "prolm"`)
-	assert.Contains(t, out, "Usage:")
-	assert.Contains(t, out, "prolm [command]")
+	assert.Empty(t, result.stdout)
+	assert.Contains(t, result.stderr, `unknown command "frob" for "prolm"`)
+	assert.Contains(t, result.stderr, "Usage:")
+	assert.Contains(t, result.stderr, "prolm [command]")
 }
 
 func TestCommandCentralDocTracksPublicSurface(t *testing.T) {

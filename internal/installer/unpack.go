@@ -36,6 +36,32 @@ func (e *ErrExtractionLimit) Error() string {
 	return fmt.Sprintf("extraction limit exceeded: %s", e.Reason)
 }
 
+type extractionLimits struct {
+	totalSize uint64
+	fileCount int
+}
+
+func (l *extractionLimits) addFile(name string, size uint64) error {
+	if size > uint64(maxSingleFileSize) {
+		return &ErrExtractionLimit{
+			Reason: fmt.Sprintf("file %s is %d bytes (max %d)", name, size, maxSingleFileSize),
+		}
+	}
+	l.totalSize += size
+	if l.totalSize > uint64(maxExtractedSize) {
+		return &ErrExtractionLimit{
+			Reason: fmt.Sprintf("total extracted size exceeds %d bytes", maxExtractedSize),
+		}
+	}
+	l.fileCount++
+	if l.fileCount > maxFileCount {
+		return &ErrExtractionLimit{
+			Reason: fmt.Sprintf("file count exceeds %d", maxFileCount),
+		}
+	}
+	return nil
+}
+
 // Unpack extracts a .tar.gz tarball to destDir with full security checks (SEC-2, SEC-12, SEC-13).
 // On any violation, partial extraction is deleted and a hard error is returned.
 func Unpack(tarballPath string, destDir string) error {
@@ -109,8 +135,7 @@ func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
 
 	tr := tar.NewReader(gz)
 
-	var totalSize int64
-	var fileCount int
+	var limits extractionLimits
 
 	for {
 		header, err := tr.Next()
@@ -121,18 +146,7 @@ func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
 			return fmt.Errorf("reading tarball entry: %w", err)
 		}
 
-		// Reject null bytes in entry name.
-		if strings.ContainsRune(header.Name, 0) {
-			return &ErrPathTraversal{EntryPath: "(contains null byte)"}
-		}
-
-		// Reject absolute paths before safeExtract (filepath.Join replaces
-		// first arg when second is absolute on some platforms).
-		if filepath.IsAbs(header.Name) {
-			return &ErrPathTraversal{EntryPath: header.Name}
-		}
-
-		dest, err := safeExtract(destDir, header.Name)
+		dest, err := validateArchiveEntry(destDir, header.Name)
 		if err != nil {
 			return err
 		}
@@ -149,22 +163,13 @@ func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
 			continue
 
 		case tar.TypeReg:
-			if header.Size > maxSingleFileSize {
+			if header.Size < 0 {
 				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("file %s is %d bytes (max %d)", header.Name, header.Size, maxSingleFileSize),
+					Reason: fmt.Sprintf("file %s has negative size %d", header.Name, header.Size),
 				}
 			}
-			totalSize += header.Size
-			if totalSize > maxExtractedSize {
-				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("total extracted size exceeds %d bytes", maxExtractedSize),
-				}
-			}
-			fileCount++
-			if fileCount > maxFileCount {
-				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("file count exceeds %d", maxFileCount),
-				}
+			if err := limits.addFile(header.Name, uint64(header.Size)); err != nil {
+				return err
 			}
 			if err := extractRegularFile(dest, tr, header.Size); err != nil {
 				return err
@@ -182,15 +187,8 @@ func unpackTarGz(r io.Reader, destDir, canonicalDestDir string) error {
 			// chains where intermediate on-disk links could redirect outside destDir.
 			// If EvalSymlinks fails (dangling symlink — target not yet on disk),
 			// the string-based validateSymlink above is sufficient.
-			if resolved, evalErr := filepath.EvalSymlinks(dest); evalErr == nil {
-				if !strings.HasPrefix(
-					filepath.Clean(resolved)+string(os.PathSeparator),
-					canonicalDestDir+string(os.PathSeparator),
-				) {
-					return &ErrPathTraversal{
-						EntryPath: fmt.Sprintf("symlink chain escapes destination: %s -> %s", header.Name, resolved),
-					}
-				}
+			if err := verifySymlinkChain(canonicalDestDir, header.Name, dest); err != nil {
+				return err
 			}
 
 		case tar.TypeLink:
@@ -222,18 +220,10 @@ func unpackZIP(archivePath string, destDir, canonicalDestDir string) error {
 	}
 	defer zr.Close()
 
-	var totalSize int64
-	var fileCount int
+	var limits extractionLimits
 
 	for _, file := range zr.File {
-		if strings.ContainsRune(file.Name, 0) {
-			return &ErrPathTraversal{EntryPath: "(contains null byte)"}
-		}
-		if filepath.IsAbs(file.Name) {
-			return &ErrPathTraversal{EntryPath: file.Name}
-		}
-
-		dest, err := safeExtract(destDir, file.Name)
+		dest, err := validateArchiveEntry(destDir, file.Name)
 		if err != nil {
 			return err
 		}
@@ -271,37 +261,16 @@ func unpackZIP(archivePath string, destDir, canonicalDestDir string) error {
 			if err := os.Symlink(target, dest); err != nil {
 				return fmt.Errorf("creating symlink %s: %w", file.Name, err)
 			}
-			if resolved, evalErr := filepath.EvalSymlinks(dest); evalErr == nil {
-				if !strings.HasPrefix(
-					filepath.Clean(resolved)+string(os.PathSeparator),
-					canonicalDestDir+string(os.PathSeparator),
-				) {
-					return &ErrPathTraversal{
-						EntryPath: fmt.Sprintf("symlink chain escapes destination: %s -> %s", file.Name, resolved),
-					}
-				}
+			if err := verifySymlinkChain(canonicalDestDir, file.Name, dest); err != nil {
+				return err
 			}
 		case mode&(os.ModeDevice|os.ModeNamedPipe|os.ModeSocket) != 0:
 			return &ErrPathTraversal{
 				EntryPath: fmt.Sprintf("%s (unsupported type)", file.Name),
 			}
 		default:
-			if file.UncompressedSize64 > uint64(maxSingleFileSize) {
-				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("file %s is %d bytes (max %d)", file.Name, file.UncompressedSize64, maxSingleFileSize),
-				}
-			}
-			totalSize += int64(file.UncompressedSize64)
-			if totalSize > maxExtractedSize {
-				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("total extracted size exceeds %d bytes", maxExtractedSize),
-				}
-			}
-			fileCount++
-			if fileCount > maxFileCount {
-				return &ErrExtractionLimit{
-					Reason: fmt.Sprintf("file count exceeds %d", maxFileCount),
-				}
+			if err := limits.addFile(file.Name, file.UncompressedSize64); err != nil {
+				return err
 			}
 
 			rc, err := file.Open()
@@ -331,6 +300,16 @@ func isZIPHeader(header []byte) bool {
 		(header[3] == 0x04 || header[3] == 0x06 || header[3] == 0x08)
 }
 
+func validateArchiveEntry(destDir, entryPath string) (string, error) {
+	if strings.ContainsRune(entryPath, 0) {
+		return "", &ErrPathTraversal{EntryPath: "(contains null byte)"}
+	}
+	if filepath.IsAbs(entryPath) {
+		return "", &ErrPathTraversal{EntryPath: entryPath}
+	}
+	return safeExtract(destDir, entryPath)
+}
+
 // safeExtract validates that entryPath resolves safely within destDir.
 // Implements the safe archive containment check required by SEC-2.
 func safeExtract(destDir, entryPath string) (string, error) {
@@ -355,6 +334,22 @@ func validateSymlink(destDir, linkPath, target string) error {
 	if !strings.HasPrefix(resolved, filepath.Clean(destDir)+string(os.PathSeparator)) {
 		return &ErrPathTraversal{
 			EntryPath: fmt.Sprintf("symlink target escapes destination: %s -> %s", linkPath, target),
+		}
+	}
+	return nil
+}
+
+func verifySymlinkChain(canonicalDestDir, entryName, linkPath string) error {
+	resolved, err := filepath.EvalSymlinks(linkPath)
+	if err != nil {
+		return nil
+	}
+	if !strings.HasPrefix(
+		filepath.Clean(resolved)+string(os.PathSeparator),
+		canonicalDestDir+string(os.PathSeparator),
+	) {
+		return &ErrPathTraversal{
+			EntryPath: fmt.Sprintf("symlink chain escapes destination: %s -> %s", entryName, resolved),
 		}
 	}
 	return nil
