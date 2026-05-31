@@ -56,9 +56,9 @@ The current and planned command contract belongs in
 `prolm install` stays manifest and lock driven rather than accepting ad hoc
 package positional inputs.
 
-High-level install, run, publish, and version-resolution diagrams live in
-[Flow Diagrams](flow-diagrams.md). The runtime receives project and dependency
-code; `prolm` does not sandbox that execution.
+High-level install, run, planned publish, and planned version-resolution
+diagrams live in [Flow Diagrams](flow-diagrams.md). The runtime receives
+project and dependency code; `prolm` does not sandbox that execution.
 
 ## Resolution And Lockfiles
 

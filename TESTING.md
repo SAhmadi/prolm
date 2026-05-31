@@ -111,7 +111,7 @@ The current test tree is organized around package ownership:
 | `internal/ui/` and `internal/atomicfile/` | printer and atomic file tests | user output and persistence helpers |
 | `pkg/prolfile/` | public type tests | metadata type serialization and namespace support |
 
-Use the [Project Component Overview](docs/codebase-knowledge-graph/Project%20Component%20Overview.md)
+Use the [Project Component Overview](docs/component-overview.md)
 for the detailed file map when locating a specific test file.
 
 ## Test Strategy

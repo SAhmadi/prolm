@@ -16,10 +16,10 @@ Read the smallest reference that covers the task:
 | Need | Reference |
 | --- | --- |
 | See documentation ownership first | [Documentation Index](docs/index.md) |
-| Find the relevant code area first | [Project Component Overview](docs/codebase-knowledge-graph/Project%20Component%20Overview.md) |
+| Find the relevant code area first | [Project Component Overview](docs/component-overview.md) |
 | Check the current and planned CLI commands | [Command Central](docs/command-central.md) |
-| Follow install, run, publish, or MVS flow | [Flow Diagrams](docs/flow-diagrams.md) and [Command Flow Map](docs/codebase-knowledge-graph/Command%20Flow%20Map.canvas) |
-| Work on a specific CLI subsystem | [Codebase Knowledge Graph](docs/codebase-knowledge-graph/Codebase%20Knowledge%20Graph.md) |
+| Follow install, run, publish, or MVS flow | [Flow Diagrams](docs/flow-diagrams.md) |
+| Work on a specific CLI subsystem | [Codebase Map](docs/codebase-map.md) |
 | Change `Prolfile.toml`, lockfiles, or metadata | [Project Files](docs/project-files.md) |
 | Change fetch, install, registry, or trust behavior | [Security Rules](docs/security.md) and [Package Manager Design](docs/package-manager-design.md) |
 | Check implementation phase and open work | [Roadmap](ROADMAP.md) |
@@ -36,7 +36,7 @@ Agents should keep external tool use explicit, minimal, and reproducible:
 - Prefer repository-local documentation before broad search. Start with
   [Documentation Index](docs/index.md), then the smallest focused reference for
   the task.
-- Use the [Project Component Overview](docs/codebase-knowledge-graph/Project%20Component%20Overview.md)
+- Use the [Project Component Overview](docs/component-overview.md)
   before searching paths by hand. It is the fastest route to the right package.
 - Read [Project Files](docs/project-files.md) before editing `Prolfile.toml`,
   `Prolfile.lock`, scaffolding templates, or metadata serialization.
@@ -159,12 +159,10 @@ These invariants must survive every implementation:
 - Keep current and future command descriptions in
   [Command Central](docs/command-central.md), with a status line for every
   command.
-- Keep flow visuals in the [Command Flow Map](docs/codebase-knowledge-graph/Command%20Flow%20Map.canvas)
-  and searchable flow navigation in [Flow Diagrams](docs/flow-diagrams.md).
-- The Obsidian Canvas flow map is fine to keep as the visual source, but every
-  flow it owns must remain discoverable through GitHub-readable Markdown,
-  especially [Flow Diagrams](docs/flow-diagrams.md).
-- Keep current path maps in the codebase knowledge graph rather than copying
+- Keep concise ASCII flow diagrams and searchable flow navigation in
+  [Flow Diagrams](docs/flow-diagrams.md).
+- Keep current path maps in [Codebase Map](docs/codebase-map.md) and
+  [Project Component Overview](docs/component-overview.md) rather than copying
   package trees into this file.
 - Keep phase sequencing and open implementation work in
   [ROADMAP.md](ROADMAP.md).
