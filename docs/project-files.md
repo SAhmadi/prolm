@@ -1,7 +1,7 @@
 # Project Files
 
 This note is the format reference for project metadata. Code locations and
-ownership are mapped in [Project Files And Metadata](codebase-knowledge-graph/Project%20Files%20And%20Metadata.md).
+ownership are mapped in [Project Metadata Flow](project-metadata-flow.md).
 
 ## Prolfile.toml
 

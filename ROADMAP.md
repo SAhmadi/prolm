@@ -136,7 +136,7 @@
 **Implementation note:** The SWI pack index has no public JSON API. Phase 1 uses
 HTML scraping of `/pack/list` and `/pack/list?p=<name>` via `golang.org/x/net/html`.
 If SWI changes their HTML structure the parse functions in `swi.go` must be updated.
-See BUGS.md for known issues deferred to later phases.
+Known issues and deferred defects are tracked in GitHub issues.
 
 **Testing:** Unit tests with `httptest.Server` mocking SWI responses. Malformed response handling. HTTP URL rejection. Timeout handling. Cache hit/miss.
 **Security:** SEC-4, SEC-9, SEC-10.

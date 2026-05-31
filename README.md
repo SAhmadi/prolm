@@ -130,6 +130,8 @@ security coverage.
 
 - [Documentation Index](docs/index.md)
 - [Command Central](docs/command-central.md)
+- [Codebase Map](docs/codebase-map.md)
+- [Project Component Overview](docs/component-overview.md)
 - [Project Files](docs/project-files.md)
 - [Security Rules](docs/security.md)
 - [Package Manager Design](docs/package-manager-design.md)
