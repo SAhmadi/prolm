@@ -29,6 +29,22 @@ contracts. Business logic should stay in the internal packages it calls.
 - [`cmd/env.go`](../cmd/env.go) reports detected runtime, store, project, and
   environment information.
 
+## Command responsibility table
+
+| Command | CLI file | Main package responsibilities |
+| --- | --- | --- |
+| `prolm` | [`cmd/root.go`](../cmd/root.go) | Cobra setup, global flags, Viper binding, usage/error presentation. |
+| `new` | [`cmd/new.go`](../cmd/new.go) | Validate CLI input, then call scaffold project creation. |
+| `init` | [`cmd/init.go`](../cmd/init.go) | Apply `--yes`/`--scan`, then call existing-directory scaffold init. |
+| `install` | [`cmd/install.go`](../cmd/install.go) | Load manifest and lock, reject stub flags, coordinate registry/install/lock save. |
+| `add` | [`cmd/add.go`](../cmd/add.go) | Parse package or URL input, mutate manifest intent, run dependency sync. |
+| `remove` | [`cmd/remove.go`](../cmd/remove.go) | Remove manifest dependency intent, run dependency sync. |
+| `run` | [`cmd/run.go`](../cmd/run.go) | Resolve entry or script, load deps, choose runtime, execute. |
+| `test` | [`cmd/test.go`](../cmd/test.go) | Discover/select tests, load deps, choose runtime, report results. |
+| `check` | [`cmd/check.go`](../cmd/check.go) | Discover source, load deps, choose runtime, report diagnostics. |
+| `env` | [`cmd/env.go`](../cmd/env.go) | Report runtime, manifest, store, and environment state. |
+| `version` | [`cmd/version.go`](../cmd/version.go) | Print binary version in text or JSON mode. |
+
 ## Shared command helpers
 
 - [`cmd/manifest_helpers.go`](../cmd/manifest_helpers.go) centralizes command

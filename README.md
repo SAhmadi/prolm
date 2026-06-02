@@ -126,6 +126,16 @@ go test ./cmd -run TestSmoke_EndToEndPhase1Acceptance -count=1
 See [TESTING.md](TESTING.md) for test ownership, CI behavior, and adversarial
 security coverage.
 
+## Contributor Navigation
+
+Start with [Documentation Index](docs/index.md), then read the smallest focused
+reference for the change. For command behavior use
+[Command Central](docs/command-central.md); for code paths use
+[Project Component Overview](docs/component-overview.md); for manifests and
+lockfiles use [Project Files](docs/project-files.md); for package acquisition
+or trust boundaries use [Security Rules](docs/security.md) and
+[Package Manager Design](docs/package-manager-design.md).
+
 ## Documentation Map
 
 - [Documentation Index](docs/index.md)

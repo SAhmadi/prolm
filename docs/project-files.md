@@ -45,6 +45,23 @@ When `prolm` writes the manifest, sections stay in this order:
 not produce noisy diffs. Comments should be preserved where reasonable; if a
 writer cannot preserve them, document that behavior before expanding its use.
 
+Current command support:
+
+| Section or field | Status |
+| --- | --- |
+| `[meta]` | Implemented for manifest format and minimum `prolm` version metadata. |
+| `[package]` | Implemented for project identity, entry path, and default runtime. |
+| `[dependencies]` | Implemented for normal dependency intent. |
+| `[dev-dependencies]` | Parsed, serialized, and included in lock freshness; `add --dev` and `remove --dev` are planned. |
+| `[runtime.*]` | Implemented for runtime flags and minimum version checks in runtime-backed commands. |
+| `[scripts]` | Implemented for restricted `prolm run <script>` entry resolution. |
+| Path/source dependency objects | Future-facing; represented by public types but not live command syntax. |
+| Workspace metadata | Future-facing; tracked in the roadmap. |
+
+Runtime-specific config and scripts are real manifest fields today, but they
+are intentionally narrow. Scripts are not a general shell runner; current
+`prolm run` script values use the `prolm run <entry> [-- <args>]` shape.
+
 ## Constraints
 
 | Syntax | Meaning |
@@ -95,5 +112,10 @@ Lockfile rules:
 - Preserve forward compatibility by adding fields instead of removing fields.
 - Install order must be deterministic: topological dependency order with
   alphabetical tie-breaking.
+- `signature` is a future-facing lock entry field. It may be serialized when
+  present, but checksum verification remains required.
+- Namespaced package IDs such as `owner/name` are supported by metadata types
+  and validation. Registry behavior for broader namespacing remains
+  future-facing.
 
 Security-sensitive lockfile behavior is defined in [Security Rules](security.md).
