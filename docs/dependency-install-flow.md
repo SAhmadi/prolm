@@ -40,8 +40,8 @@ changing install semantics.
 | Area | Expected behavior | Security rules |
 | --- | --- | --- |
 | Registry/source URL | Reject invalid or non-HTTPS registry and download data. | SEC-4, SEC-9, SEC-14 |
-| Cache hit | Reuse archive bytes only after checksum verification. | SEC-1 |
-| Fetch | Enforce HTTPS, timeouts, retry guidance, and archive size limits. | SEC-4, SEC-10, SEC-12 |
+| Cache | Store fetched archives for future offline/cache-reuse work; current installs refresh the cache path from the network when store state is missing. | SEC-1 |
+| Fetch | Enforce HTTPS, timeouts, retry guidance, and archive size limits; write downloads to the cache path atomically. | SEC-4, SEC-10, SEC-12 |
 | Verify | Delete bad cache entries and fail hard on checksum mismatch. | SEC-1 |
 | Unpack | Reject traversal, unsafe links, special files, and resource-limit violations; clean partial output. | SEC-2, SEC-12, SEC-13 |
 | Store | Hold the store lock while writing installed package state. | SEC-7 |

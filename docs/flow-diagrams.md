@@ -30,9 +30,7 @@ LF missing/stale hash? -- no --> Store complete? -- yes --> done
 Resolve via Reg/source <--------------'
         |
         v
-Cache hit? -- no --> Fetch HTTPS archive
-        | yes            |
-        '----------------'
+        Fetch HTTPS archive
                |
                v
         Verify SHA -- fail --> delete bad cache + ERR

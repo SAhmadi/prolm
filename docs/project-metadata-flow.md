@@ -95,10 +95,12 @@ or serialized before every command uses them:
   commands.
 - `[scripts]` supports `prolm run <script>` values in the restricted
   `prolm run <entry> [-- <args>]` shape.
-- Path/workspace dependencies, explicit source overrides, namespaced package
-  IDs, and authenticity/signature fields are future-facing package-manager
-  metadata. Keep them parseable and documented, but do not treat them as fully
-  implemented command behavior.
+- Namespaced package IDs and lockfile authenticity/signature fields are
+  parseable today, although broader registry and verification behavior remains
+  future-facing. Path/workspace dependency objects and explicit source
+  overrides are represented by future-design public types, but the current
+  manifest loader accepts only string constraints in `[dependencies]` and
+  `[dev-dependencies]`.
 
 ## Workflow links
 
