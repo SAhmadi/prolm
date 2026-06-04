@@ -57,3 +57,18 @@ or use a path-relative containment check.
 
 Package-manager design tradeoffs and future trust work are summarized in
 [Package Manager Design](package-manager-design.md).
+
+## Review Checklists
+
+Use these focused checks when reviewing security-sensitive subsystem changes.
+
+| Subsystem | Review questions |
+| --- | --- |
+| Registry | Are package names, versions, sources, yanked state, and URLs validated before use? Are ambiguous registries rejected instead of silently chosen? |
+| Fetch | Are all remote inputs HTTPS? Are timeouts, retry guidance, rate limits, and archive size limits enforced? |
+| Verify | Is SHA-256 checked before unpacking every archive, including cached archives? Are mismatches deleted and failed hard? |
+| Unpack | Are traversal, absolute paths, unsafe links, special files, and resource limits rejected with cleanup on failure? |
+| Store | Are writes protected by the store lock? Are partial installs removed or made unreachable after failure? |
+| Lockfile | Are writes atomic? Are generated records deterministic? Are conflict markers and untrusted URLs handled safely? |
+| Credentials | Are tokens stored outside project metadata with restrictive permissions and never logged? |
+| Runtime execution | Is user or dependency code passed as argument arrays rather than shell strings? Does documentation state that runtime execution is not sandboxed? |

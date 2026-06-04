@@ -98,6 +98,11 @@ leading `v` tags, zero-major ranges, and constraint intersection.
 - Time out network operations and respect retry guidance.
 - Credentials live outside the cache and store.
 
+Future cache garbage collection must keep those boundaries intact. It should
+remove unreferenced archives and store entries only after checking current
+lockfiles, in-progress store locks, and configured retention policy. Garbage
+collection must not delete bytes needed by a current lockfile or hide checksum mismatches by silently replacing cached data.
+
 ## Future-Facing Constraints
 
 - Keep metadata structures ready for namespaced package identifiers such as
@@ -109,3 +114,43 @@ leading `v` tags, zero-major ranges, and constraint intersection.
 - License, deprecation, audit, self-update, cache cleanup, private registry,
   and workspace work belong in the roadmap rather than in the agent entry
   document.
+
+### Workspaces And Path Dependencies
+
+Workspace and path dependency support is planned. Path dependencies such as
+`{ path = "../my-lib" }` are local, mutable inputs and should be treated
+differently from immutable registry archives. They are useful during
+development, but published packages must not rely on unresolved local paths.
+
+Workspace lock behavior should keep one deterministic dependency view for all
+members. Test and check commands may gain workspace-wide modes later, but the
+current live commands operate on one discovered `Prolfile.toml`.
+
+### Lockfile Merge Conflicts
+
+`Prolfile.lock` is generated metadata. The current install path can detect Git
+conflict markers, warn, and re-resolve from `Prolfile.toml`. Future lockfile
+conflict handling should continue to prefer deterministic regeneration over
+manual editing, while preserving the rule that the resulting lock records exact
+package bytes.
+
+### Private Registries
+
+Private registry work is future-facing. It must keep credentials outside
+project metadata and logs, require HTTPS, validate lockfile URLs against the
+configured source, and avoid silently choosing between registries that claim
+the same package name. Explicit source selection is required when package names
+would otherwise be ambiguous.
+
+### Authenticity And Signing
+
+SHA-256 checksums verify downloaded bytes against the selected lock or registry
+metadata, but they do not prove package authorship. Future signature fields
+should add authenticity without weakening checksum verification, safe unpack,
+or immutable-version rules.
+
+### Telemetry And Privacy
+
+Do not add telemetry by default. Any future telemetry must be explicit,
+documented, disableable, and careful not to include project paths, package
+source, credentials, or registry tokens.

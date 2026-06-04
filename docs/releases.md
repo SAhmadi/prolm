@@ -14,6 +14,19 @@ Releases. Release tags are the only publishing trigger.
 - GitHub artifact attestations are skipped while this repository is user-owned
   and private; enable them by making the repository public or moving to a
   supported repository type.
+- The current workflow assumes a private or user-owned repository where
+  release credentials and GitHub permission behavior are managed by GitHub
+  Actions secrets and repository settings.
+- When the repository becomes public, revisit artifact attestations, release
+  visibility, issue/PR automation permissions, and any package-manager
+  distribution channels before tagging the next release.
+
+## GoReleaser Expectations
+
+The release workflow expects `.goreleaser.yaml` to define the same supported
+binary target set listed above and to attach archives plus `checksums.txt` to
+the GitHub Release. `goreleaser check` and the snapshot release are the local
+configuration guard before pushing a tag.
 
 ## Preflight
 
@@ -71,6 +84,10 @@ prolm 0.1.0
 ```
 
 6. Verify the downloaded archive checksum against `checksums.txt`.
+
+For public releases, also verify any enabled artifact attestation and make sure
+the release notes do not expose private repository paths, secrets, or internal
+automation details.
 
 ## Failure Handling
 

@@ -30,3 +30,7 @@ topic has both a codebase map and a reference spec.
   expanding `AGENTS.md` back into a full spec.
 - Keep implementation sequencing and open work in [ROADMAP.md](../ROADMAP.md).
 - Keep security invariants in [Security Rules](security.md).
+
+## Docs Health
+
+Keep docs concise, and cross-linked. A reusable Markdown link-check target is tracked separately in issue #73; until that exists, use an ad hoc local link scan after broad documentation edits.
